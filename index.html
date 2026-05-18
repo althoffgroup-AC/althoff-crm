@@ -12,41 +12,60 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#080808;color:#F0F0F0;font-family:system-ui,-apple-system,sans-serif}
 input,select,textarea,button{font-family:inherit}
-::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#2A2A2A;border-radius:3px}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fade{animation:fadeIn .2s ease}
+@media(max-width:768px){
+  .sidebar{position:fixed!important;left:-220px!important;z-index:300!important;transition:left .25s!important;height:100vh}
+  .sidebar.open{left:0!important}
+  .overlay{display:block!important}
+  .main-content{margin-left:0!important}
+  .stats-grid{grid-template-columns:1fr 1fr!important}
+  .two-col{grid-template-columns:1fr!important}
+  .three-col{grid-template-columns:1fr 1fr!important}
+  .pipeline-col{min-width:160px!important}
+}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
-const {useState,useEffect} = React;
+const {useState,useEffect,useRef}=React;
 
-const db = supabase.createClient(
+const db=supabase.createClient(
   'https://dallqyjpjcrxgpluxdou.supabase.co',
   'sb_publishable_DL59lMAVGUOu_Awc2nkWQw_LwZALtTy'
 );
 
-const G='#C8912A', GA='rgba(200,145,42,0.12)';
+const G='#C8912A',GA='rgba(200,145,42,0.12)',GB='rgba(200,145,42,0.25)';
 const ST=['Novo','Contato Feito','Visita Agendada','Proposta','Negociando','Fechado','Perdido'];
-const SC={'Novo':'#3B82F6','Contato Feito':'#8B5CF6','Visita Agendada':G,'Proposta':'#F97316','Negociando':'#06B6D4','Fechado':'#22C55E','Perdido':'#EF4444'};
-const PRI_C={'Alta':'#EF4444','Média':G,'Baixa':'#3B82F6'};
+const SC={Novo:'#3B82F6','Contato Feito':'#8B5CF6','Visita Agendada':G,Proposta:'#F97316',Negociando:'#06B6D4',Fechado:'#22C55E',Perdido:'#EF4444'};
+const PRI_C={Alta:'#EF4444',Média:G,Baixa:'#3B82F6'};
 const PROP_T=['Sala','Loja','Galpão','Conjunto','Escritório','Ponto Comercial','Outro'];
+const INT_TIPOS=['Ligação','Reunião','Visita','Proposta Enviada','E-mail','WhatsApp','Anotação'];
+const INT_IC={Ligação:'📞',Reunião:'🤝','Visita':'🏢','Proposta Enviada':'📋','E-mail':'📧','WhatsApp':'💬','Anotação':'📝'};
 
 const WA_TPL=[
   {name:'Boas-vindas',fn:(l,b)=>`Olá, *${l}*! 😊\n\nSou *${b}* da *Althoff Grupo*, assessoria especializada em imóveis comerciais.\n\nRecebi seu contato e estou à disposição para encontrar o imóvel ideal. Podemos conversar? 🏢\n\n*${b}* — Althoff Grupo`},
   {name:'Confirmação de Visita',fn:(l,b)=>`Olá, *${l}*! 🏢\n\nConfirmando nossa visita. Qualquer dúvida é só avisar!\n\n*${b}* — Althoff Grupo`},
-  {name:'Envio de Proposta',fn:(l,b)=>`Olá, *${l}*! 📋\n\nSegue a proposta preparada especialmente para você. Estou à disposição para negociar. 🤝\n\n*${b}* — Althoff Grupo`},
-  {name:'Follow-up',fn:(l,b)=>`Olá, *${l}*! Como você está?\n\nGostaria de saber se podemos avançar na negociação. Estou aqui para ajudar! 😊\n\n*${b}* — Althoff Grupo`},
+  {name:'Envio de Proposta',fn:(l,b)=>`Olá, *${l}*! 📋\n\nSegue a proposta preparada para você. Estou à disposição para negociar. 🤝\n\n*${b}* — Althoff Grupo`},
+  {name:'Follow-up',fn:(l,b)=>`Olá, *${l}*! Como você está?\n\nGostaria de saber se podemos avançar. Estou aqui! 😊\n\n*${b}* — Althoff Grupo`},
 ];
 const EM_TPL=[
-  {name:'Apresentação',sf:()=>'Imóvel Comercial Ideal | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nMeu nome é ${b}, assessor(a) da Althoff Grupo.\n\nIdentificamos oportunidades que podem atender as necessidades do seu negócio em Blumenau. Gostaria de agendar uma conversa?\n\nAtenciosamente,\n${b}\nAlthoff Grupo\nwww.althoffgrupo.com.br`},
-  {name:'Pós-visita',sf:()=>'Como foi sua impressão? | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nFoi um prazer recebê-lo(a)!\n\nGostaríamos de saber sua opinião e esclarecer qualquer dúvida.\n\nAtenciosamente,\n${b}\nAlthoff Grupo`},
+  {name:'Apresentação',sf:()=>'Imóvel Comercial Ideal | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nMeu nome é ${b}, assessor(a) da Althoff Grupo.\n\nIdentificamos oportunidades para seu negócio em Blumenau. Posso agendar uma conversa?\n\nAtenciosamente,\n${b}\nAlthoff Grupo\nwww.althoffgrupo.com.br`},
+  {name:'Pós-visita',sf:()=>'Como foi sua impressão? | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nFoi um prazer recebê-lo(a)!\n\nGostaríamos de saber sua opinião.\n\nAtenciosamente,\n${b}\nAlthoff Grupo`},
+  {name:'Proposta Formal',sf:()=>'Proposta Comercial | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nSegue a proposta formal para sua análise.\n\nFicamos à disposição para negociar.\n\nAtenciosamente,\n${b}\nAlthoff Grupo`},
 ];
 
-const Ico=({d,size=16,col='currentColor'})=>(
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const fmt=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v||0);
+const fmtDate=d=>d?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+
+// ── UI Primitives ──
+const Ico=({d,size=16,col='currentColor',stroke=2})=>(
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
     {(Array.isArray(d)?d:[d]).map((p,i)=><path key={i} d={p}/>)}
   </svg>
 );
@@ -57,6 +76,7 @@ const IC={
   cal:'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
   task:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
   send:'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
+  chart:'M18 20V10M12 20V4M6 20v-6',
   plus:['M12 5v14','M5 12h14'],
   x:['M18 6L6 18','M6 6l12 12'],
   chk:'M20 6L9 17l-5-5',
@@ -69,11 +89,18 @@ const IC={
   trend:'M23 6l-9.5 9.5-5-5L1 18',
   clk:['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z','M12 6v6l4 2'],
   ph:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 9.8 19.79 19.79 0 0 1 1.1 1.17 2 2 0 0 1 3.09 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.5a16 16 0 0 0 6.29 6.29l1.42-1.42a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+  edit:['M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7','M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'],
+  trash:['M3 6h18','M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6','M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'],
+  search:'M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z',
+  hist:['M12 2a10 10 0 1 0 0 20','M12 6v6l4 2','M2 12a10 10 0 0 0 10 10'],
+  menu:'M3 12h18M3 6h18M3 18h18',
+  close:'M18 6L6 18M6 6l12 12',
+  mail:['M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z','M22 6l-10 7L2 6'],
 };
 
 const Avatar=({b,size=28})=>(
   <div style={{width:size,height:size,borderRadius:'50%',background:b?.cor||'#555',display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.36,fontWeight:700,color:'#fff',flexShrink:0}}>
-    {b?.iniciais}
+    {b?.iniciais||'?'}
   </div>
 );
 const Badge=({label,color})=>(
@@ -83,13 +110,50 @@ const Card=({children,style={}})=>(
   <div style={{background:'#141414',border:'1px solid #222',borderRadius:12,...style}}>{children}</div>
 );
 const Spin=()=>(
-  <div style={{display:'flex',justifyContent:'center',padding:48}}>
-    <div style={{width:28,height:28,border:'3px solid #222',borderTop:`3px solid ${G}`,borderRadius:'50%',animation:'spin .8s linear infinite'}}/>
+  <div style={{display:'flex',justifyContent:'center',padding:60}}>
+    <div style={{width:30,height:30,border:'3px solid #222',borderTop:`3px solid ${G}`,borderRadius:'50%',animation:'spin .8s linear infinite'}}/>
   </div>
 );
-const fmt=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v||0);
+const Btn=({children,onClick,color=G,outline=false,danger=false,small=false,disabled=false})=>{
+  const bg=danger?'#EF4444':outline?'transparent':color;
+  const cl=danger?'#fff':outline?'#666':'#000';
+  const br=danger?'none':outline?'1px solid #2A2A2A':'none';
+  return <button onClick={onClick} disabled={disabled} style={{display:'flex',alignItems:'center',gap:6,padding:small?'5px 10px':'8px 16px',borderRadius:8,background:bg,border:br,color:cl,fontWeight:700,fontSize:small?11:13,cursor:disabled?'not-allowed':'pointer',opacity:disabled?0.5:1,whiteSpace:'nowrap'}}>{children}</button>;
+};
+const inp_style={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:7,padding:'9px 11px',color:'#F0F0F0',fontSize:13,outline:'none',marginBottom:10};
+const lbl_style={fontSize:11,color:'#666',textTransform:'uppercase',letterSpacing:1,marginBottom:4,display:'block'};
 
-/* ── LOGIN ── */
+// ── MODAL WRAPPER ──
+function Modal({title,onClose,children,width=420}){
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}} onClick={onClose}>
+      <div className="fade" style={{background:'#141414',border:'1px solid #272727',borderRadius:16,padding:24,width,maxWidth:'95vw',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+          <h2 style={{margin:0,fontSize:16,fontWeight:700}}>{title}</h2>
+          <div onClick={onClose} style={{cursor:'pointer',color:'#666',padding:4}}><Ico d={IC.x} size={17}/></div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── CONFIRM DIALOG ──
+function Confirm({msg,onYes,onNo}){
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}}>
+      <div className="fade" style={{background:'#1A1A1A',border:'1px solid #333',borderRadius:14,padding:28,width:340,maxWidth:'90vw'}}>
+        <div style={{fontSize:14,color:'#DDD',marginBottom:24,lineHeight:1.6}}>{msg}</div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onNo} style={{flex:1,padding:10,borderRadius:8,background:'transparent',border:'1px solid #333',color:'#888',cursor:'pointer'}}>Cancelar</button>
+          <button onClick={onYes} style={{flex:1,padding:10,borderRadius:8,background:'#EF4444',border:'none',color:'#fff',fontWeight:700,cursor:'pointer'}}>Excluir</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LOGIN ──
 function Login({onLogin}){
   const [email,setEmail]=useState('');
   const [pass,setPass]=useState('');
@@ -107,29 +171,21 @@ function Login({onLogin}){
     onLogin(data);
   };
 
-  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:8,padding:'11px 14px',color:'#F0F0F0',fontSize:14,outline:'none'};
-
   return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{width:360,padding:'0 20px'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{width:360,maxWidth:'100%'}}>
         <div style={{textAlign:'center',marginBottom:36}}>
           <div style={{fontSize:28,fontWeight:800,color:G,letterSpacing:2,marginBottom:6}}>ALTHOFF</div>
           <div style={{fontSize:10,color:'#444',letterSpacing:3,textTransform:'uppercase'}}>CRM Comercial</div>
         </div>
         <Card style={{padding:28}}>
           <h2 style={{margin:'0 0 22px',fontSize:17,fontWeight:700}}>Entrar na sua conta</h2>
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>E-mail</div>
-            <input style={inp} type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="seu@althoff.com.br" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
-          </div>
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>Senha</div>
-            <div style={{position:'relative'}}>
-              <input style={{...inp,paddingRight:42}} type={showP?'text':'password'} value={pass} onChange={e=>{setPass(e.target.value);setErr('');}} placeholder="••••••" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
-              <div onClick={()=>setShowP(!showP)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#555'}}>
-                <Ico d={showP?IC.noeye:IC.eye} size={16}/>
-              </div>
-            </div>
+          <label style={lbl_style}>E-mail</label>
+          <input style={inp_style} type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="seu@althoff.com.br" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
+          <label style={lbl_style}>Senha</label>
+          <div style={{position:'relative',marginBottom:10}}>
+            <input style={{...inp_style,marginBottom:0,paddingRight:42}} type={showP?'text':'password'} value={pass} onChange={e=>{setPass(e.target.value);setErr('');}} placeholder="••••••" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
+            <div onClick={()=>setShowP(!showP)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#555'}}><Ico d={showP?IC.noeye:IC.eye} size={16}/></div>
           </div>
           {err&&<div style={{background:'#EF444418',border:'1px solid #EF444430',borderRadius:7,padding:'8px 12px',fontSize:12,color:'#EF4444',marginBottom:14}}>{err}</div>}
           <button onClick={doLogin} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:16,opacity:loading?0.7:1}}>
@@ -137,8 +193,7 @@ function Login({onLogin}){
           </button>
           <div onClick={()=>setHints(!hints)} style={{textAlign:'center',fontSize:12,color:'#444',cursor:'pointer'}}>{hints?'▲ Ocultar':'▼ Ver acessos de teste'}</div>
           {hints&&(
-            <div style={{marginTop:14,padding:14,background:'#0E0E0E',borderRadius:8,border:'1px solid #1C1C1C'}}>
-              <div style={{fontSize:10,color:'#444',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>Clique para preencher</div>
+            <div style={{marginTop:12,padding:12,background:'#0E0E0E',borderRadius:8,border:'1px solid #1C1C1C'}}>
               {[['ana@althoff.com.br','123456'],['carlos@althoff.com.br','123456'],['admin@althoff.com.br','admin123']].map(([e,p])=>(
                 <div key={e} onClick={()=>{setEmail(e);setPass(p);setErr('');}}
                   style={{padding:'6px 8px',borderRadius:6,cursor:'pointer',marginBottom:3,background:email===e?GA:'transparent'}}>
@@ -154,8 +209,177 @@ function Login({onLogin}){
   );
 }
 
-/* ── DASHBOARD ── */
-function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
+// ── FORMS ──
+function FormLead({initial={},onSave,onClose,corretor,imoveis,corretores,isAdmin}){
+  const [f,setF]=useState({nome:'',telefone:'',email:'',interesse:'',status:'Novo',valor:'',imovel_id:'',origem:'',corretor_id:corretor?.id||'',...initial,valor:initial.valor||''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const handleProp=v=>{set('imovel_id',v);if(v){const p=imoveis.find(x=>String(x.id)===v);if(p)set('interesse',p.titulo);}};
+  const isEdit=!!initial.id;
+  return (
+    <div>
+      <label style={lbl_style}>Nome *</label>
+      <input style={inp_style} value={f.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome ou empresa"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl_style}>Telefone</label><input style={inp_style} value={f.telefone} onChange={e=>set('telefone',e.target.value)} placeholder="(47) 99999-9999"/></div>
+        <div><label style={lbl_style}>E-mail</label><input style={inp_style} value={f.email} onChange={e=>set('email',e.target.value)} placeholder="email@ex.com"/></div>
+      </div>
+      <label style={lbl_style}>Imóvel de interesse</label>
+      <select style={inp_style} value={f.imovel_id} onChange={e=>handleProp(e.target.value)}>
+        <option value="">Selecionar imóvel (opcional)</option>
+        {imoveis.map(p=><option key={p.id} value={String(p.id)}>{p.titulo}</option>)}
+      </select>
+      <label style={lbl_style}>Interesse / Descrição</label>
+      <input style={inp_style} value={f.interesse} onChange={e=>set('interesse',e.target.value)} placeholder="Ex: Sala comercial..."/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl_style}>Status</label>
+          <select style={inp_style} value={f.status} onChange={e=>set('status',e.target.value)}>{ST.map(s=><option key={s}>{s}</option>)}</select>
+        </div>
+        <div><label style={lbl_style}>Valor (R$)</label>
+          <input style={inp_style} type="number" value={f.valor} onChange={e=>set('valor',e.target.value)} placeholder="0"/>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl_style}>Origem</label>
+          <select style={inp_style} value={f.origem} onChange={e=>set('origem',e.target.value)}>
+            <option value="">Selecionar</option>
+            {['Site','Instagram','WhatsApp','Indicação','LinkedIn','Google','Outro'].map(o=><option key={o}>{o}</option>)}
+          </select>
+        </div>
+        {isAdmin&&<div><label style={lbl_style}>Corretor</label>
+          <select style={inp_style} value={f.corretor_id} onChange={e=>set('corretor_id',e.target.value)}>
+            {corretores.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>}
+      </div>
+      <div style={{display:'flex',gap:10,marginTop:8}}>
+        <Btn outline onClick={onClose}>Cancelar</Btn>
+        <button onClick={()=>f.nome&&onSave({...f,valor:Number(f.valor)||0,imovel_id:f.imovel_id?Number(f.imovel_id):null,corretor_id:f.corretor_id||corretor?.id})}
+          style={{flex:1,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>
+          {isEdit?'Salvar Alterações':'Adicionar Lead'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FormImovel({initial={},onSave,onClose,corretor}){
+  const [f,setF]=useState({titulo:'',tipo:'Sala',preco:'',aluguel:'',localizacao:'',area:'',descricao:'',status:'Disponível',...initial,preco:initial.preco||'',aluguel:initial.aluguel||'',area:initial.area||''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const isEdit=!!initial.id;
+  return (
+    <div>
+      {!isEdit&&<div style={{background:GA,border:`1px solid ${G}33`,borderRadius:8,padding:'8px 12px',fontSize:12,color:G,marginBottom:14}}>📌 Registrado em seu nome — <strong>{corretor?.nome}</strong></div>}
+      <label style={lbl_style}>Título *</label>
+      <input style={inp_style} value={f.titulo} onChange={e=>set('titulo',e.target.value)} placeholder="Ex: Sala Comercial — Centro"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl_style}>Tipo</label><select style={inp_style} value={f.tipo} onChange={e=>set('tipo',e.target.value)}>{PROP_T.map(t=><option key={t}>{t}</option>)}</select></div>
+        <div><label style={lbl_style}>Status</label><select style={inp_style} value={f.status} onChange={e=>set('status',e.target.value)}>{['Disponível','Reservado','Negociando','Vendido'].map(s=><option key={s}>{s}</option>)}</select></div>
+      </div>
+      <label style={lbl_style}>Localização *</label>
+      <input style={inp_style} value={f.localizacao} onChange={e=>set('localizacao',e.target.value)} placeholder="Ex: Centro, Blumenau"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        <div><label style={lbl_style}>Área (m²)</label><input style={inp_style} type="number" value={f.area} onChange={e=>set('area',e.target.value)} placeholder="0"/></div>
+        <div><label style={lbl_style}>Venda (R$)</label><input style={inp_style} type="number" value={f.preco} onChange={e=>set('preco',e.target.value)} placeholder="0"/></div>
+        <div><label style={lbl_style}>Aluguel/mês</label><input style={{...inp_style,marginBottom:0}} type="number" value={f.aluguel} onChange={e=>set('aluguel',e.target.value)} placeholder="0"/></div>
+      </div>
+      <label style={{...lbl_style,marginTop:10}}>Descrição</label>
+      <textarea style={{...inp_style,minHeight:72,resize:'vertical'}} value={f.descricao} onChange={e=>set('descricao',e.target.value)} placeholder="Descreva o imóvel..."/>
+      <div style={{display:'flex',gap:10,marginTop:4}}>
+        <Btn outline onClick={onClose}>Cancelar</Btn>
+        <button onClick={()=>f.titulo&&f.localizacao&&onSave({...f,preco:Number(f.preco)||0,aluguel:Number(f.aluguel)||0,area:Number(f.area)||0})}
+          style={{flex:1,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>
+          {isEdit?'Salvar Alterações':'Registrar Imóvel'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── HISTÓRICO DE INTERAÇÕES ──
+function Historico({lead,corretor,onClose}){
+  const [hist,setHist]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tipo,setTipo]=useState('Anotação');
+  const [texto,setTexto]=useState('');
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{loadHist();},[]);
+
+  const loadHist=async()=>{
+    setLoading(true);
+    const {data}=await db.from('historico').select('*').eq('lead_id',lead.id).order('criado_em',{ascending:false});
+    setHist(data||[]);
+    setLoading(false);
+  };
+
+  const addHist=async()=>{
+    if(!texto.trim())return;
+    setSaving(true);
+    const {data}=await db.from('historico').insert({lead_id:lead.id,corretor_id:corretor.id,tipo,texto,corretor_nome:corretor.nome}).select().single();
+    if(data)setHist(p=>[data,...p]);
+    setTexto('');
+    setSaving(false);
+  };
+
+  const delHist=async(id)=>{
+    await db.from('historico').delete().eq('id',id);
+    setHist(p=>p.filter(h=>h.id!==id));
+  };
+
+  return (
+    <div>
+      <div style={{background:'#0E0E0E',borderRadius:10,padding:14,marginBottom:16,border:'1px solid #1C1C1C'}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{lead.nome}</div>
+        <div style={{fontSize:11,color:'#555'}}>{lead.interesse} · <span style={{color:SC[lead.status]||'#888'}}>{lead.status}</span></div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <label style={lbl_style}>Tipo de interação</label>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+          {INT_TIPOS.map(t=>(
+            <button key={t} onClick={()=>setTipo(t)}
+              style={{padding:'5px 10px',borderRadius:6,border:`1px solid ${tipo===t?G:'#2A2A2A'}`,background:tipo===t?GA:'transparent',color:tipo===t?G:'#666',fontSize:12,cursor:'pointer'}}>
+              {INT_IC[t]} {t}
+            </button>
+          ))}
+        </div>
+        <label style={lbl_style}>Descrição *</label>
+        <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder={`Registre detalhes da ${tipo.toLowerCase()}...`}
+          style={{...inp_style,minHeight:80,resize:'vertical',marginBottom:8}}
+          onKeyDown={e=>e.ctrlKey&&e.key==='Enter'&&addHist()}/>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:11,color:'#444'}}>Ctrl+Enter para salvar</span>
+          <Btn onClick={addHist} disabled={saving||!texto.trim()}>{saving?'Salvando...':'Registrar'}</Btn>
+        </div>
+      </div>
+      <div style={{borderTop:'1px solid #1C1C1C',paddingTop:14}}>
+        <div style={{fontSize:11,color:'#555',fontWeight:600,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>Histórico ({hist.length})</div>
+        {loading?<Spin/>:hist.length===0?(
+          <div style={{textAlign:'center',padding:'24px 0',color:'#333',fontSize:13}}>Nenhuma interação registrada ainda.</div>
+        ):hist.map(h=>(
+          <div key={h.id} style={{padding:'10px 12px',background:'#0E0E0E',borderRadius:9,border:'1px solid #1A1A1A',marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}>
+              <div style={{display:'flex',alignItems:'center',gap:7}}>
+                <span style={{fontSize:14}}>{INT_IC[h.tipo]||'📝'}</span>
+                <span style={{fontSize:12,fontWeight:600,color:G}}>{h.tipo}</span>
+                <span style={{fontSize:11,color:'#444'}}>· {h.corretor_nome}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:10,color:'#444'}}>{new Date(h.criado_em).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                {(corretor.id===h.corretor_id||corretor.is_admin)&&(
+                  <div onClick={()=>delHist(h.id)} style={{cursor:'pointer',color:'#444',padding:2}}><Ico d={IC.trash} size={13}/></div>
+                )}
+              </div>
+            </div>
+            <div style={{fontSize:13,color:'#CCC',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{h.texto}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── DASHBOARD ──
+function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask,corretores}){
   const mine=isAdmin?leads:leads.filter(l=>l.corretor_id===corretor?.id);
   const active=mine.filter(l=>!['Fechado','Perdido'].includes(l.status));
   const closed=mine.filter(l=>l.status==='Fechado');
@@ -168,29 +392,29 @@ function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
     {l:'Tarefas',v:myT.filter(t=>!t.concluida).length,sub:'pendentes',col:'#F97316',ic:IC.clk},
   ];
   return (
-    <div>
-      {isAdmin&&<div style={{background:'#1A1A0E',border:`1px solid ${G}33`,borderRadius:8,padding:'8px 14px',fontSize:12,color:G,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ico d={IC.shld} size={13}/> Modo Administrador</div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
+    <div className="fade">
+      {isAdmin&&<div style={{background:'#1A1A0E',border:`1px solid ${G}33`,borderRadius:8,padding:'8px 14px',fontSize:12,color:G,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ico d={IC.shld} size={13}/> Modo Administrador — visualizando todos os dados</div>}
+      <div className="stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
         {stats.map(({l,v,sub,col,ic})=>(
-          <Card key={l} style={{padding:16}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <Card key={l} style={{padding:14}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
               <span style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:1.2}}>{l}</span>
-              <div style={{width:30,height:30,borderRadius:7,background:`${col}18`,display:'flex',alignItems:'center',justifyContent:'center'}}><Ico d={ic} size={14} col={col}/></div>
+              <div style={{width:28,height:28,borderRadius:7,background:`${col}18`,display:'flex',alignItems:'center',justifyContent:'center'}}><Ico d={ic} size={13} col={col}/></div>
             </div>
-            <div style={{fontSize:20,fontWeight:700,color:col,marginBottom:3}}>{v}</div>
+            <div style={{fontSize:20,fontWeight:700,color:col,marginBottom:2}}>{v}</div>
             <div style={{fontSize:11,color:'#444'}}>{sub}</div>
           </Card>
         ))}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="two-col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
         <Card style={{padding:16}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontWeight:600,fontSize:13}}>{isAdmin?'Leads Recentes':'Meus Leads'}</span>
             <span onClick={()=>setSec('pipeline')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver todos →</span>
           </div>
           {mine.slice(0,6).map(l=>(
             <div key={l.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
-              <div style={{width:32,height:32,borderRadius:8,background:GA,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:G,flexShrink:0}}>{(l.nome||'?')[0]}</div>
+              <div style={{width:30,height:30,borderRadius:8,background:GA,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:G,flexShrink:0}}>{(l.nome||'?')[0]}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.nome}</div>
                 <div style={{fontSize:11,color:'#555'}}>{l.interesse}</div>
@@ -198,18 +422,18 @@ function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
               <Badge label={l.status} color={SC[l.status]||'#888'}/>
             </div>
           ))}
-          {mine.length===0&&<div style={{fontSize:12,color:'#333',padding:'12px 0'}}>Nenhum lead ainda.</div>}
+          {mine.length===0&&<div style={{fontSize:12,color:'#333',padding:'16px 0',textAlign:'center'}}>Nenhum lead ainda.</div>}
         </Card>
         <div style={{display:'flex',flexDirection:'column',gap:14}}>
           <Card style={{padding:16}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
               <span style={{fontWeight:600,fontSize:13}}>Próximas Visitas</span>
               <span onClick={()=>setSec('agenda')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver →</span>
             </div>
             {myV.slice(0,3).map(v=>(
               <div key={v.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
-                <div style={{background:GA,borderRadius:7,padding:'4px 9px',textAlign:'center',flexShrink:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
+                <div style={{background:GA,borderRadius:7,padding:'4px 8px',textAlign:'center',flexShrink:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
                   <div style={{fontSize:9,color:'#555'}}>{v.data?.slice(8)}/{v.data?.slice(5,7)}</div>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
@@ -218,17 +442,17 @@ function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
                 </div>
               </div>
             ))}
-            {myV.length===0&&<div style={{fontSize:12,color:'#333',padding:'8px 0'}}>Nenhuma visita agendada.</div>}
+            {myV.length===0&&<div style={{fontSize:12,color:'#333',padding:'8px 0'}}>Nenhuma visita.</div>}
           </Card>
           <Card style={{padding:16}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
               <span style={{fontWeight:600,fontSize:13}}>Tarefas Urgentes</span>
               <span onClick={()=>setSec('tasks')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver →</span>
             </div>
             {myT.filter(t=>!t.concluida&&t.prioridade==='Alta').slice(0,3).map(t=>(
               <div key={t.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
-                <div onClick={()=>toggleTask(t.id)} style={{cursor:'pointer',flexShrink:0,color:'#333'}}><Ico d={['M12 2a10 10 0 1 0 0 20','M12 6v6l4 2']} size={15}/></div>
-                <span style={{fontSize:12,flex:1}}>{t.titulo}</span>
+                <div onClick={()=>toggleTask(t.id)} style={{cursor:'pointer',flexShrink:0}}><Ico d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2" size={15} col="#333"/></div>
+                <span style={{fontSize:12,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.titulo}</span>
                 <span style={{fontSize:10,color:'#EF4444',background:'#EF444418',borderRadius:4,padding:'2px 6px',flexShrink:0}}>{t.prazo?.slice(8)}/{t.prazo?.slice(5,7)}</span>
               </div>
             ))}
@@ -240,12 +464,19 @@ function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
   );
 }
 
-/* ── PIPELINE ── */
-function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal}){
+// ── PIPELINE ──
+function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal,corretores}){
   const [showAll,setShowAll]=useState(isAdmin);
   const [sel,setSel]=useState(null);
-  const filtered=showAll?leads:leads.filter(l=>l.corretor_id===corretor?.id);
-  const cols=ST.slice(0,-1);
+  const [histLead,setHistLead]=useState(null);
+  const [editLead,setEditLead]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [busca,setBusca]=useState('');
+  const [filtroStatus,setFiltroStatus]=useState('');
+
+  const filtered=(showAll?leads:leads.filter(l=>l.corretor_id===corretor?.id))
+    .filter(l=>!busca||l.nome.toLowerCase().includes(busca.toLowerCase())||l.interesse?.toLowerCase().includes(busca.toLowerCase()))
+    .filter(l=>!filtroStatus||l.status===filtroStatus);
 
   const moveLead=async(id,status)=>{
     await db.from('leads').update({status}).eq('id',id);
@@ -253,47 +484,87 @@ function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal}){
     setSel(null);
   };
 
+  const deleteLead=async(id)=>{
+    await db.from('leads').delete().eq('id',id);
+    setLeads(p=>p.filter(l=>l.id!==id));
+    setConfirm(null);setSel(null);
+  };
+
+  const saveLead=async(f)=>{
+    const {data}=await db.from('leads').update(f).eq('id',f.id).select().single();
+    if(data)setLeads(p=>p.map(l=>l.id===data.id?data:l));
+    setEditLead(null);
+  };
+
+  const cols=ST.slice(0,-1);
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-        {isAdmin?(
+    <div className="fade">
+      {confirm&&<Confirm msg={`Excluir lead "${confirm.nome}"? Esta ação não pode ser desfeita.`} onYes={()=>deleteLead(confirm.id)} onNo={()=>setConfirm(null)}/>}
+      {histLead&&<Modal title={`Histórico — ${histLead.nome}`} onClose={()=>setHistLead(null)} width={520}><Historico lead={histLead} corretor={corretor} onClose={()=>setHistLead(null)}/></Modal>}
+      {editLead&&<Modal title="Editar Lead" onClose={()=>setEditLead(null)} width={460}><FormLead initial={editLead} onSave={saveLead} onClose={()=>setEditLead(null)} corretor={corretor} imoveis={imoveis} corretores={corretores} isAdmin={isAdmin}/></Modal>}
+
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+        <div style={{position:'relative',flex:1,minWidth:200}}>
+          <div style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#555'}}><Ico d={IC.search} size={14}/></div>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar lead..." style={{...inp_style,marginBottom:0,paddingLeft:34,paddingRight:12}}/>
+        </div>
+        <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...inp_style,marginBottom:0,width:'auto'}}>
+          <option value="">Todos os status</option>
+          {ST.map(s=><option key={s}>{s}</option>)}
+        </select>
+        {isAdmin&&(
           <div style={{display:'flex',gap:6}}>
             {[[true,'Todos'],[false,'Meus']].map(([a,l])=>(
               <button key={String(a)} onClick={()=>setShowAll(a)}
-                style={{padding:'6px 14px',borderRadius:6,border:`1px solid ${showAll===a?G:'#2A2A2A'}`,background:showAll===a?GA:'transparent',color:showAll===a?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
+                style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${showAll===a?G:'#2A2A2A'}`,background:showAll===a?GA:'transparent',color:showAll===a?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
             ))}
           </div>
-        ):<div style={{fontSize:12,color:'#555'}}>Meus leads — {filtered.filter(l=>!['Fechado','Perdido'].includes(l.status)).length} ativos</div>}
-        <button onClick={()=>setModal('addLead')} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}>
-          <Ico d={IC.plus} size={14}/> Novo Lead
-        </button>
+        )}
+        <Btn onClick={()=>setModal('addLead')}><Ico d={IC.plus} size={14}/> Novo Lead</Btn>
       </div>
-      <div style={{display:'flex',gap:11,overflowX:'auto',paddingBottom:12}}>
+
+      <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:12}}>
         {cols.map(status=>{
           const col=SC[status];
           const sLeads=filtered.filter(l=>l.status===status);
           return (
-            <div key={status} style={{minWidth:185,flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div key={status} className="pipeline-col" style={{minWidth:180,flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:5}}>
                   <div style={{width:7,height:7,borderRadius:'50%',background:col}}/>
                   <span style={{fontSize:11,fontWeight:600,color:'#AAA'}}>{status}</span>
                 </div>
-                <span style={{fontSize:10,background:'#1C1C1C',color:'#555',borderRadius:10,padding:'1px 7px'}}>{sLeads.length}</span>
+                <span style={{fontSize:10,background:'#1C1C1C',color:'#555',borderRadius:10,padding:'1px 6px'}}>{sLeads.length}</span>
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:7}}>
                 {sLeads.map(l=>{
                   const open=sel===l.id;
                   return (
                     <div key={l.id} onClick={()=>setSel(open?null:l.id)}
-                      style={{background:'#141414',border:`1px solid ${open?col:'#212121'}`,borderRadius:10,padding:11,cursor:'pointer'}}>
-                      <div style={{fontSize:12,fontWeight:600,marginBottom:3}}>{l.nome}</div>
-                      <div style={{fontSize:11,color:'#555',marginBottom:8}}>{l.interesse}</div>
+                      style={{background:'#141414',border:`1px solid ${open?col:'#212121'}`,borderRadius:10,padding:11,cursor:'pointer',transition:'border-color .15s'}}>
+                      <div style={{fontSize:12,fontWeight:600,marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.nome}</div>
+                      <div style={{fontSize:11,color:'#555',marginBottom:7,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.interesse||'—'}</div>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                         <span style={{fontSize:12,color:G,fontWeight:600}}>{fmt(l.valor)}</span>
+                        {l.origem&&<span style={{fontSize:10,color:'#444',background:'#1C1C1C',borderRadius:4,padding:'1px 5px'}}>{l.origem}</span>}
                       </div>
                       {open&&(
                         <div style={{marginTop:9,paddingTop:9,borderTop:'1px solid #1E1E1E'}}>
+                          <div style={{display:'flex',gap:6,marginBottom:8}}>
+                            <button onClick={e=>{e.stopPropagation();setHistLead(l);setSel(null);}}
+                              style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:6,background:GA,border:`1px solid ${G}33`,color:G,fontSize:11,cursor:'pointer'}}>
+                              <Ico d={IC.hist} size={11}/> Histórico
+                            </button>
+                            <button onClick={e=>{e.stopPropagation();setEditLead(l);setSel(null);}}
+                              style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:6,background:'#1C1C1C',border:'1px solid #2A2A2A',color:'#888',fontSize:11,cursor:'pointer'}}>
+                              <Ico d={IC.edit} size={11}/> Editar
+                            </button>
+                            <button onClick={e=>{e.stopPropagation();setConfirm(l);}}
+                              style={{padding:'4px 8px',borderRadius:6,background:'#EF444418',border:'1px solid #EF444430',color:'#EF4444',fontSize:11,cursor:'pointer'}}>
+                              <Ico d={IC.trash} size={11}/>
+                            </button>
+                          </div>
                           <div style={{fontSize:10,color:'#555',marginBottom:5}}>Mover para:</div>
                           <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
                             {ST.filter(s=>s!==status).map(s=>(
@@ -301,7 +572,7 @@ function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal}){
                                 style={{fontSize:10,background:`${SC[s]}15`,color:SC[s],border:`1px solid ${SC[s]}30`,borderRadius:4,padding:'2px 5px',cursor:'pointer'}}>{s}</span>
                             ))}
                           </div>
-                          {l.telefone&&<a href={`tel:${l.telefone}`} style={{display:'flex',alignItems:'center',gap:3,fontSize:11,color:'#22C55E',textDecoration:'none',marginTop:8}}><Ico d={IC.ph} size={10}/>{l.telefone}</a>}
+                          {l.telefone&&<a href={`tel:${l.telefone}`} onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#22C55E',textDecoration:'none',marginTop:7}}><Ico d={IC.ph} size={10}/>{l.telefone}</a>}
                         </div>
                       )}
                     </div>
@@ -316,89 +587,146 @@ function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal}){
   );
 }
 
-/* ── IMÓVEIS ── */
-function Imoveis({imoveis,corretor,isAdmin,setImoveis,setModal}){
+// ── IMÓVEIS ──
+function Imoveis({imoveis,corretor,isAdmin,setImoveis,setModal,corretores}){
   const [tab,setTab]=useState('all');
-  const stC={Disponível:'#22C55E',Negociando:G,Reservado:'#8B5CF6'};
-  const shown=tab==='mine'?imoveis.filter(p=>p.captador_id===corretor?.id):imoveis;
+  const [editImovel,setEditImovel]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [busca,setBusca]=useState('');
+  const stC={Disponível:'#22C55E',Negociando:G,Reservado:'#8B5CF6',Vendido:'#EF4444'};
+
+  const shown=(tab==='mine'?imoveis.filter(p=>p.captador_id===corretor?.id):imoveis)
+    .filter(p=>!busca||p.titulo.toLowerCase().includes(busca.toLowerCase())||p.localizacao?.toLowerCase().includes(busca.toLowerCase()));
+
+  const saveImovel=async(f)=>{
+    const {data}=await db.from('imoveis').update(f).eq('id',f.id).select().single();
+    if(data)setImoveis(p=>p.map(x=>x.id===data.id?data:x));
+    setEditImovel(null);
+  };
+
+  const deleteImovel=async(id)=>{
+    await db.from('imoveis').delete().eq('id',id);
+    setImoveis(p=>p.filter(x=>x.id!==id));
+    setConfirm(null);
+  };
+
+  const getCaptador=id=>corretores.find(c=>c.id===id);
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+    <div className="fade">
+      {confirm&&<Confirm msg={`Excluir imóvel "${confirm.titulo}"?`} onYes={()=>deleteImovel(confirm.id)} onNo={()=>setConfirm(null)}/>}
+      {editImovel&&<Modal title="Editar Imóvel" onClose={()=>setEditImovel(null)} width={480}><FormImovel initial={editImovel} onSave={saveImovel} onClose={()=>setEditImovel(null)} corretor={corretor}/></Modal>}
+
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+        <div style={{position:'relative',flex:1,minWidth:200}}>
+          <div style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#555'}}><Ico d={IC.search} size={14}/></div>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar imóvel..." style={{...inp_style,marginBottom:0,paddingLeft:34}}/>
+        </div>
         <div style={{display:'flex',gap:6}}>
           {[['all','Todos'],['mine','Meus Imóveis']].map(([t,l])=>(
             <button key={t} onClick={()=>setTab(t)}
-              style={{padding:'6px 14px',borderRadius:6,border:`1px solid ${tab===t?G:'#2A2A2A'}`,background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
+              style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${tab===t?G:'#2A2A2A'}`,background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
           ))}
         </div>
-        <button onClick={()=>setModal('addImovel')} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}>
-          <Ico d={IC.plus} size={14}/> Captar Imóvel
-        </button>
+        <Btn onClick={()=>setModal('addImovel')}><Ico d={IC.plus} size={14}/> Captar Imóvel</Btn>
       </div>
-      {shown.length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:'#333'}}>Nenhum imóvel. Clique em "Captar Imóvel".</div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
-        {shown.map(p=>(
-          <Card key={p.id} style={{overflow:'hidden'}}>
-            <div style={{height:88,background:'linear-gradient(135deg,#181818,#222)',display:'flex',alignItems:'center',justifyContent:'center',borderBottom:'1px solid #1C1C1C',position:'relative'}}>
-              <Ico d={IC.bld} size={38} col="#2A2A2A"/>
-              <div style={{position:'absolute',top:9,right:9}}><Badge label={p.status} color={stC[p.status]||'#888'}/></div>
-              <div style={{position:'absolute',top:9,left:9,background:'#161616',border:'1px solid #2A2A2A',borderRadius:5,padding:'2px 8px',fontSize:10,color:'#666'}}>{p.tipo}</div>
-            </div>
-            <div style={{padding:13}}>
-              <div style={{fontSize:13,fontWeight:700,marginBottom:4,lineHeight:1.3}}>{p.titulo}</div>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><Ico d={IC.pin} size={10} col="#555"/><span style={{fontSize:11,color:'#555'}}>{p.localizacao}</span></div>
-              {p.descricao&&<div style={{fontSize:11,color:'#444',marginBottom:8,lineHeight:1.5}}>{p.descricao}</div>}
-              <span style={{fontSize:11,background:'#1C1C1C',color:'#777',borderRadius:5,padding:'3px 8px'}}>{p.area}m²</span>
-              <div style={{borderTop:'1px solid #1C1C1C',marginTop:10,paddingTop:10,display:'flex',justifyContent:'space-between'}}>
-                <div><div style={{fontSize:10,color:'#444'}}>Venda</div><div style={{fontSize:14,fontWeight:700,color:G}}>{p.preco?fmt(p.preco):'—'}</div></div>
-                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#444'}}>Aluguel</div><div style={{fontSize:12,fontWeight:600,color:'#BBB'}}>{p.aluguel?`${fmt(p.aluguel)}/mês`:'—'}</div></div>
+
+      {shown.length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:'#333'}}>Nenhum imóvel encontrado.</div>}
+      <div className="three-col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
+        {shown.map(p=>{
+          const captador=getCaptador(p.captador_id);
+          return (
+            <Card key={p.id} style={{overflow:'hidden'}}>
+              <div style={{height:80,background:'linear-gradient(135deg,#181818,#222)',display:'flex',alignItems:'center',justifyContent:'center',borderBottom:'1px solid #1C1C1C',position:'relative'}}>
+                <Ico d={IC.bld} size={34} col="#2A2A2A"/>
+                <div style={{position:'absolute',top:8,right:8}}><Badge label={p.status} color={stC[p.status]||'#888'}/></div>
+                <div style={{position:'absolute',top:8,left:8,background:'#161616',border:'1px solid #2A2A2A',borderRadius:5,padding:'2px 7px',fontSize:10,color:'#666'}}>{p.tipo}</div>
               </div>
-            </div>
-          </Card>
-        ))}
+              <div style={{padding:13}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:3,lineHeight:1.3}}>{p.titulo}</div>
+                <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5}}><Ico d={IC.pin} size={10} col="#555"/><span style={{fontSize:11,color:'#555'}}>{p.localizacao}</span></div>
+                {p.descricao&&<div style={{fontSize:11,color:'#444',marginBottom:8,lineHeight:1.5,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{p.descricao}</div>}
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                  <span style={{fontSize:11,background:'#1C1C1C',color:'#777',borderRadius:5,padding:'2px 7px'}}>{p.area}m²</span>
+                  {captador&&<div style={{display:'flex',alignItems:'center',gap:4,marginLeft:'auto'}}>
+                    <Avatar b={captador} size={17}/>
+                    <span style={{fontSize:11,color:'#555'}}>{captador.nome.split(' ')[0]}</span>
+                  </div>}
+                </div>
+                <div style={{borderTop:'1px solid #1C1C1C',paddingTop:10,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+                  <div>
+                    <div style={{fontSize:10,color:'#444'}}>Venda</div>
+                    <div style={{fontSize:14,fontWeight:700,color:G}}>{p.preco?fmt(p.preco):'—'}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:10,color:'#444'}}>Aluguel</div>
+                    <div style={{fontSize:12,fontWeight:600,color:'#BBB'}}>{p.aluguel?`${fmt(p.aluguel)}/mês`:'—'}</div>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:6,marginTop:10}}>
+                  <button onClick={()=>setEditImovel(p)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'6px',borderRadius:6,background:'#1C1C1C',border:'1px solid #2A2A2A',color:'#888',fontSize:12,cursor:'pointer'}}>
+                    <Ico d={IC.edit} size={12}/> Editar
+                  </button>
+                  {(isAdmin||p.captador_id===corretor?.id)&&(
+                    <button onClick={()=>setConfirm(p)} style={{padding:'6px 10px',borderRadius:6,background:'#EF444418',border:'1px solid #EF444430',color:'#EF4444',fontSize:12,cursor:'pointer'}}>
+                      <Ico d={IC.trash} size={12}/>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-/* ── AGENDA ── */
-function Agenda({visitas,corretor,isAdmin}){
+// ── AGENDA ──
+function Agenda({visitas,corretor,isAdmin,corretores}){
   const mine=isAdmin?visitas:visitas.filter(v=>v.corretor_id===corretor?.id);
   const grouped=mine.reduce((a,v)=>{(a[v.data]=a[v.data]||[]).push(v);return a;},{});
   const DAYS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:18}}>
-        <button style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}><Ico d={IC.plus} size={14}/> Agendar Visita</button>
+    <div className="fade">
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+        <Btn><Ico d={IC.plus} size={14}/> Agendar Visita</Btn>
       </div>
       {Object.keys(grouped).length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:'#333'}}>Nenhuma visita agendada.</div>}
       {Object.keys(grouped).sort().map(date=>{
         const d=new Date(date+'T12:00:00');
         return (
-          <div key={date} style={{marginBottom:22}}>
+          <div key={date} style={{marginBottom:20}}>
             <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-              <div style={{background:GA,border:`1px solid ${G}33`,borderRadius:9,padding:'5px 13px',textAlign:'center',flexShrink:0}}>
+              <div style={{background:GA,border:`1px solid ${G}33`,borderRadius:9,padding:'4px 12px',textAlign:'center',flexShrink:0}}>
                 <div style={{fontSize:10,color:G,fontWeight:600}}>{DAYS[d.getDay()]}</div>
-                <div style={{fontSize:20,fontWeight:800,color:G,lineHeight:1}}>{d.getDate()}</div>
+                <div style={{fontSize:19,fontWeight:800,color:G,lineHeight:1}}>{d.getDate()}</div>
                 <div style={{fontSize:9,color:'#555'}}>{MONTHS[d.getMonth()]}</div>
               </div>
               <div style={{flex:1,height:1,background:'#1A1A1A'}}/>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8,marginLeft:72}}>
-              {grouped[date].map(v=>(
-                <Card key={v.id} style={{padding:'13px 15px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:11}}>
-                    <div style={{background:'#1C1C1C',borderRadius:7,padding:'5px 11px',flexShrink:0,textAlign:'center'}}>
-                      <div style={{fontSize:17,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginLeft:68}}>
+              {grouped[date].map(v=>{
+                const b=corretores.find(c=>c.id===v.corretor_id);
+                return (
+                  <Card key={v.id} style={{padding:'12px 15px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:11}}>
+                      <div style={{background:'#1C1C1C',borderRadius:7,padding:'4px 10px',flexShrink:0,textAlign:'center'}}>
+                        <div style={{fontSize:16,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700}}>{v.lead_nome}</div>
+                        <div style={{fontSize:11,color:'#555'}}>{v.imovel_titulo}</div>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <Badge label={v.status} color={v.status==='Confirmada'?'#22C55E':G}/>
+                        {isAdmin&&b&&<Avatar b={b} size={24}/>}
+                      </div>
                     </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:700}}>{v.lead_nome}</div>
-                      <div style={{fontSize:11,color:'#555'}}>{v.imovel_titulo}</div>
-                    </div>
-                    <Badge label={v.status} color={v.status==='Confirmada'?'#22C55E':G}/>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
         );
@@ -407,39 +735,78 @@ function Agenda({visitas,corretor,isAdmin}){
   );
 }
 
-/* ── TAREFAS ── */
-function Tarefas({tarefas,corretor,isAdmin,toggleTask}){
+// ── TAREFAS ──
+function Tarefas({tarefas,setTarefas,corretor,isAdmin,toggleTask,corretores}){
   const mine=isAdmin?tarefas:tarefas.filter(t=>t.corretor_id===corretor?.id);
   const pending=mine.filter(t=>!t.concluida);
   const done=mine.filter(t=>t.concluida);
+  const [showAdd,setShowAdd]=useState(false);
+  const [f,setF]=useState({titulo:'',tipo:'Ligação',prioridade:'Média',prazo:'',corretor_id:corretor?.id||''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const addTask=async()=>{
+    if(!f.titulo)return;
+    const {data}=await db.from('tarefas').insert({...f,corretor_id:f.corretor_id||corretor?.id}).select().single();
+    if(data)setTarefas(p=>[...p,data]);
+    setF({titulo:'',tipo:'Ligação',prioridade:'Média',prazo:'',corretor_id:corretor?.id||''});
+    setShowAdd(false);
+  };
+
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:18}}>
-        <button style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}><Ico d={IC.plus} size={14}/> Nova Tarefa</button>
+    <div className="fade">
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+        <Btn onClick={()=>setShowAdd(!showAdd)}><Ico d={IC.plus} size={14}/> Nova Tarefa</Btn>
       </div>
-      <div style={{marginBottom:22}}>
+
+      {showAdd&&(
+        <Card style={{padding:16,marginBottom:16}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div style={{gridColumn:'1/-1'}}><label style={lbl_style}>Título *</label><input style={inp_style} value={f.titulo} onChange={e=>set('titulo',e.target.value)} placeholder="Descrição da tarefa"/></div>
+            <div><label style={lbl_style}>Tipo</label><select style={inp_style} value={f.tipo} onChange={e=>set('tipo',e.target.value)}>{['Ligação','Reunião','Proposta','Visita','E-mail','Docs','Marketing','Outro'].map(t=><option key={t}>{t}</option>)}</select></div>
+            <div><label style={lbl_style}>Prioridade</label><select style={inp_style} value={f.prioridade} onChange={e=>set('prioridade',e.target.value)}>{['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}</select></div>
+            <div><label style={lbl_style}>Prazo</label><input style={inp_style} type="date" value={f.prazo} onChange={e=>set('prazo',e.target.value)}/></div>
+            {isAdmin&&<div><label style={lbl_style}>Corretor</label><select style={inp_style} value={f.corretor_id} onChange={e=>set('corretor_id',e.target.value)}>{corretores.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>}
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <Btn outline onClick={()=>setShowAdd(false)}>Cancelar</Btn>
+            <Btn onClick={addTask}>Salvar Tarefa</Btn>
+          </div>
+        </Card>
+      )}
+
+      <div style={{marginBottom:20}}>
         <div style={{fontSize:11,color:'#555',fontWeight:600,textTransform:'uppercase',letterSpacing:1.2,marginBottom:10}}>Pendentes ({pending.length})</div>
-        {pending.map(t=>(
-          <Card key={t.id} style={{padding:'11px 15px',marginBottom:7}}>
-            <div style={{display:'flex',alignItems:'center',gap:11}}>
-              <div onClick={()=>toggleTask(t.id)} style={{width:19,height:19,borderRadius:'50%',border:'2px solid #2E2E2E',cursor:'pointer',flexShrink:0}}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600}}>{t.titulo}</div>
-                <div style={{fontSize:11,color:'#555',marginTop:2}}>{t.tipo} · {t.prazo?.slice(8)}/{t.prazo?.slice(5,7)}</div>
+        {pending.map(t=>{
+          const b=corretores.find(c=>c.id===t.corretor_id);
+          const late=t.prazo&&t.prazo<new Date().toISOString().slice(0,10);
+          return (
+            <Card key={t.id} style={{padding:'11px 14px',marginBottom:7}}>
+              <div style={{display:'flex',alignItems:'center',gap:11}}>
+                <div onClick={()=>toggleTask(t.id)}
+                  style={{width:19,height:19,borderRadius:'50%',border:'2px solid #2E2E2E',cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.titulo}</div>
+                  <div style={{display:'flex',gap:8,marginTop:2}}>
+                    <span style={{fontSize:11,color:'#555'}}>{t.tipo}</span>
+                    {t.prazo&&<span style={{fontSize:11,color:late?'#EF4444':'#444'}}>{late?'⚠ ':''}{fmtDate(t.prazo)}</span>}
+                  </div>
+                </div>
+                <Badge label={t.prioridade} color={PRI_C[t.prioridade]||'#888'}/>
+                {isAdmin&&b&&<Avatar b={b} size={22}/>}
               </div>
-              <Badge label={t.prioridade} color={PRI_C[t.prioridade]||'#888'}/>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
         {pending.length===0&&<div style={{fontSize:13,color:'#333',padding:'20px 0',textAlign:'center'}}>Todas as tarefas concluídas! 🎉</div>}
       </div>
+
       {done.length>0&&(
         <div>
           <div style={{fontSize:11,color:'#333',fontWeight:600,textTransform:'uppercase',letterSpacing:1.2,marginBottom:10}}>Concluídas ({done.length})</div>
           {done.map(t=>(
-            <div key={t.id} style={{display:'flex',alignItems:'center',gap:11,padding:'9px 15px',background:'#0E0E0E',borderRadius:8,border:'1px solid #181818',opacity:0.55,marginBottom:5}}>
+            <div key={t.id} style={{display:'flex',alignItems:'center',gap:11,padding:'9px 14px',background:'#0E0E0E',borderRadius:8,border:'1px solid #181818',opacity:0.5,marginBottom:5}}>
               <div onClick={()=>toggleTask(t.id)} style={{width:19,height:19,borderRadius:'50%',background:'#22C55E18',border:'2px solid #22C55E',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Ico d={IC.chk} size={10} col="#22C55E"/></div>
-              <span style={{fontSize:12,textDecoration:'line-through',color:'#444'}}>{t.titulo}</span>
+              <span style={{fontSize:12,textDecoration:'line-through',color:'#444',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.titulo}</span>
             </div>
           ))}
         </div>
@@ -448,7 +815,110 @@ function Tarefas({tarefas,corretor,isAdmin,toggleTask}){
   );
 }
 
-/* ── DISPAROS ── */
+// ── RELATÓRIOS ──
+function Relatorios({leads,tarefas,visitas,corretores,isAdmin,corretor}){
+  const [periodo,setPeriodo]=useState('30');
+
+  const since=new Date();
+  since.setDate(since.getDate()-Number(periodo));
+  const sinceStr=since.toISOString().slice(0,10);
+
+  const leadsRecentes=leads.filter(l=>l.criado_em>=sinceStr);
+  const stats=corretores.filter(c=>!c.is_admin).map(c=>{
+    const mLeads=leads.filter(l=>l.corretor_id===c.id);
+    const mRecentes=leadsRecentes.filter(l=>l.corretor_id===c.id);
+    const mFechados=mLeads.filter(l=>l.status==='Fechado');
+    const mAtivos=mLeads.filter(l=>!['Fechado','Perdido'].includes(l.status));
+    const mPipeline=mAtivos.reduce((s,l)=>s+(l.valor||0),0);
+    const mTarefas=tarefas.filter(t=>t.corretor_id===c.id&&!t.concluida);
+    return {corretor:c,total:mLeads.length,recentes:mRecentes.length,fechados:mFechados.length,ativos:mAtivos.length,pipeline:mPipeline,tarefas:mTarefas.length};
+  }).sort((a,b)=>b.fechados-a.fechados);
+
+  const totalPipeline=stats.reduce((s,x)=>s+x.pipeline,0);
+  const totalFechados=stats.reduce((s,x)=>s+x.fechados,0);
+
+  const byStatus=ST.map(s=>({status:s,count:leads.filter(l=>l.status===s).length,col:SC[s]}));
+
+  return (
+    <div className="fade">
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <span style={{fontSize:13,color:'#666'}}>Visão geral do time</span>
+        <div style={{display:'flex',gap:6}}>
+          {[['7','7 dias'],['30','30 dias'],['90','90 dias']].map(([v,l])=>(
+            <button key={v} onClick={()=>setPeriodo(v)}
+              style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${periodo===v?G:'#2A2A2A'}`,background:periodo===v?GA:'transparent',color:periodo===v?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
+        {[
+          {l:'Total Leads',v:leads.length,col:'#3B82F6'},
+          {l:'Pipeline Total',v:fmt(totalPipeline),col:G},
+          {l:'Fechamentos',v:totalFechados,col:'#22C55E'},
+          {l:'Leads no período',v:leadsRecentes.length,col:'#8B5CF6'},
+        ].map(({l,v,col})=>(
+          <Card key={l} style={{padding:14}}>
+            <div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:1.2,marginBottom:6}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:700,color:col}}>{v}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="two-col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+        <Card style={{padding:16}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>Desempenho por Corretor</div>
+          {stats.map(({corretor:c,total,fechados,ativos,pipeline,tarefas:t})=>(
+            <div key={c.id} style={{padding:'10px 0',borderBottom:'1px solid #1A1A1A'}}>
+              <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:8}}>
+                <Avatar b={c} size={28}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600}}>{c.nome}</div>
+                  <div style={{fontSize:11,color:'#555'}}>{total} leads · {t} tarefas pendentes</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:G}}>{fmt(pipeline)}</div>
+                  <div style={{fontSize:10,color:'#444'}}>pipeline</div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <div style={{flex:1,background:'#0E0E0E',borderRadius:6,padding:'5px 9px',textAlign:'center'}}>
+                  <div style={{fontSize:16,fontWeight:700,color:'#3B82F6'}}>{ativos}</div>
+                  <div style={{fontSize:9,color:'#444'}}>Ativos</div>
+                </div>
+                <div style={{flex:1,background:'#0E0E0E',borderRadius:6,padding:'5px 9px',textAlign:'center'}}>
+                  <div style={{fontSize:16,fontWeight:700,color:'#22C55E'}}>{fechados}</div>
+                  <div style={{fontSize:9,color:'#444'}}>Fechados</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </Card>
+
+        <Card style={{padding:16}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>Leads por Status</div>
+          {byStatus.filter(x=>x.count>0).map(({status,count,col})=>{
+            const pct=leads.length?Math.round(count/leads.length*100):0;
+            return (
+              <div key={status} style={{marginBottom:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                  <span style={{fontSize:12,color:'#AAA'}}>{status}</span>
+                  <span style={{fontSize:12,color:col,fontWeight:600}}>{count}</span>
+                </div>
+                <div style={{height:6,background:'#1C1C1C',borderRadius:3,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${pct}%`,background:col,borderRadius:3,transition:'width .5s'}}/>
+                </div>
+              </div>
+            );
+          })}
+          {leads.length===0&&<div style={{fontSize:12,color:'#333',textAlign:'center',padding:'20px 0'}}>Nenhum lead cadastrado.</div>}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── DISPAROS ──
 function Disparos({corretor}){
   const [tab,setTab]=useState('whatsapp');
   const [tIdx,setTIdx]=useState(0);
@@ -461,122 +931,57 @@ function Disparos({corretor}){
   const preview=tab==='whatsapp'?tpl.fn(ln,bn):`Assunto: ${tpl.sf(ln)}\n\n${tpl.bf(ln,bn)}`;
   const copy=()=>{navigator.clipboard.writeText(preview);setCopied(true);setTimeout(()=>setCopied(false),2000);};
   return (
-    <div style={{display:'grid',gridTemplateColumns:'265px 1fr',gap:18}}>
-      <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        <Card style={{padding:5,display:'flex',gap:4}}>
-          {[['whatsapp','WhatsApp'],['email','E-mail']].map(([t,l])=>(
-            <button key={t} onClick={()=>{setTab(t);setTIdx(0);}}
-              style={{flex:1,padding:8,borderRadius:7,border:'none',background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontWeight:tab===t?700:400,fontSize:12,cursor:'pointer'}}>{l}</button>
-          ))}
-        </Card>
-        <Card style={{padding:13}}>
-          <div style={{fontSize:10,color:'#555',marginBottom:6,textTransform:'uppercase',letterSpacing:1.2}}>Nome do Lead</div>
-          <input value={lead} onChange={e=>setLead(e.target.value)} placeholder="Ex: João Silva"
-            style={{width:'100%',background:'#1C1C1C',border:'1px solid #272727',borderRadius:6,padding:'8px 10px',color:'#F0F0F0',fontSize:13,outline:'none'}}/>
-        </Card>
-        <Card style={{padding:13}}>
-          <div style={{fontSize:10,color:'#555',marginBottom:9,textTransform:'uppercase',letterSpacing:1.2}}>Modelo</div>
-          {tpls.map((t,i)=>(
-            <div key={i} onClick={()=>setTIdx(i)}
-              style={{padding:'8px 11px',borderRadius:7,cursor:'pointer',marginBottom:3,background:tIdx===i?GA:'transparent',border:`1px solid ${tIdx===i?G+'44':'transparent'}`,fontSize:12,color:tIdx===i?G:'#777'}}>{t.name}</div>
-          ))}
-        </Card>
-      </div>
-      <Card style={{padding:18,display:'flex',flexDirection:'column'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:15}}>
-          <div><div style={{fontWeight:700,fontSize:14}}>Prévia</div><div style={{fontSize:11,color:'#444',marginTop:1}}>Enviando como: {bn}</div></div>
-          <button onClick={copy} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:7,background:copied?'#22C55E18':GA,border:`1px solid ${copied?'#22C55E44':G+'44'}`,color:copied?'#22C55E':G,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-            {copied?<><Ico d={IC.chk} size={13}/> Copiado!</>:'Copiar'}
-          </button>
+    <div className="fade">
+      <div className="two-col" style={{display:'grid',gridTemplateColumns:'260px 1fr',gap:16}}>
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <Card style={{padding:5,display:'flex',gap:4}}>
+            {[['whatsapp','WhatsApp'],['email','E-mail']].map(([t,l])=>(
+              <button key={t} onClick={()=>{setTab(t);setTIdx(0);}}
+                style={{flex:1,padding:8,borderRadius:7,border:'none',background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontWeight:tab===t?700:400,fontSize:12,cursor:'pointer'}}>{l}</button>
+            ))}
+          </Card>
+          <Card style={{padding:13}}>
+            <label style={lbl_style}>Nome do Lead</label>
+            <input value={lead} onChange={e=>setLead(e.target.value)} placeholder="Ex: João Silva" style={{...inp_style,marginBottom:0}}/>
+          </Card>
+          <Card style={{padding:13}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:9,textTransform:'uppercase',letterSpacing:1.2}}>Modelo</div>
+            {tpls.map((t,i)=>(
+              <div key={i} onClick={()=>setTIdx(i)}
+                style={{padding:'8px 11px',borderRadius:7,cursor:'pointer',marginBottom:3,background:tIdx===i?GA:'transparent',border:`1px solid ${tIdx===i?G+'44':'transparent'}`,fontSize:12,color:tIdx===i?G:'#777'}}>{t.name}</div>
+            ))}
+          </Card>
         </div>
-        <div style={{flex:1,background:'#0C0C0C',borderRadius:10,padding:18,border:'1px solid #181818',minHeight:180}}>
-          {tab==='whatsapp'?(
-            <div style={{background:'#1B3A24',borderRadius:'12px 12px 2px 12px',padding:'11px 14px',display:'inline-block',maxWidth:'85%',float:'right'}}>
-              <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#F0F0F0',whiteSpace:'pre-wrap',lineHeight:1.65}}>{preview.replace(/\*(.*?)\*/g,'$1')}</pre>
-            </div>
-          ):(
-            <div>
-              <div style={{borderBottom:'1px solid #1C1C1C',paddingBottom:9,marginBottom:10}}><span style={{fontSize:11,color:'#555'}}>Assunto: </span><span style={{fontSize:13,fontWeight:600}}>{tpl.sf(ln)}</span></div>
-              <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#CCC',whiteSpace:'pre-wrap',lineHeight:1.75}}>{tpl.bf(ln,bn)}</pre>
-            </div>
-          )}
-          <div style={{clear:'both'}}/>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ── MODALS ── */
-function ModalLead({onSave,onClose,corretor,imoveis,isAdmin}){
-  const [f,setF]=useState({nome:'',telefone:'',email:'',interesse:'',status:'Novo',valor:'',imovel_id:''});
-  const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:7,padding:'9px 11px',color:'#F0F0F0',fontSize:13,outline:'none',marginBottom:12};
-  const lbl={fontSize:11,color:'#666',textTransform:'uppercase',letterSpacing:1,marginBottom:5,display:'block'};
-  const handleProp=v=>{set('imovel_id',v);if(v){const p=imoveis.find(x=>String(x.id)===v);if(p)set('interesse',p.titulo);}};
-  return (
-    <div>
-      <label style={lbl}>Nome *</label>
-      <input style={inp} value={f.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome ou empresa"/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><label style={lbl}>Telefone</label><input style={inp} value={f.telefone} onChange={e=>set('telefone',e.target.value)} placeholder="(47) 99999-9999"/></div>
-        <div><label style={lbl}>E-mail</label><input style={inp} value={f.email} onChange={e=>set('email',e.target.value)} placeholder="email@ex.com"/></div>
-      </div>
-      <label style={lbl}>Imóvel de interesse</label>
-      <select style={{...inp}} value={f.imovel_id} onChange={e=>handleProp(e.target.value)}>
-        <option value="">Selecionar imóvel (opcional)</option>
-        {imoveis.filter(p=>p.status!=='Reservado').map(p=><option key={p.id} value={String(p.id)}>{p.titulo}</option>)}
-      </select>
-      <label style={lbl}>Interesse / Descrição</label>
-      <input style={inp} value={f.interesse} onChange={e=>set('interesse',e.target.value)} placeholder="Ex: Sala comercial..."/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><label style={lbl}>Status</label><select style={{...inp,marginBottom:0}} value={f.status} onChange={e=>set('status',e.target.value)}>{ST.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-        <div><label style={lbl}>Valor (R$)</label><input style={{...inp,marginBottom:0}} type="number" value={f.valor} onChange={e=>set('valor',e.target.value)} placeholder="0"/></div>
-      </div>
-      <div style={{display:'flex',gap:10,marginTop:20}}>
-        <button onClick={onClose} style={{flex:1,padding:11,borderRadius:8,background:'transparent',border:'1px solid #2A2A2A',color:'#888',fontSize:13,cursor:'pointer'}}>Cancelar</button>
-        <button onClick={()=>f.nome&&onSave({...f,valor:Number(f.valor)||0,imovel_id:f.imovel_id?Number(f.imovel_id):null})}
-          style={{flex:2,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>Adicionar Lead</button>
+        <Card style={{padding:18,display:'flex',flexDirection:'column'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+            <div><div style={{fontWeight:700,fontSize:14}}>Prévia</div><div style={{fontSize:11,color:'#444',marginTop:1}}>Enviando como: {bn}</div></div>
+            <button onClick={copy} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:7,background:copied?'#22C55E18':GA,border:`1px solid ${copied?'#22C55E44':G+'44'}`,color:copied?'#22C55E':G,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+              {copied?<><Ico d={IC.chk} size={13}/> Copiado!</>:'Copiar'}
+            </button>
+          </div>
+          <div style={{flex:1,background:'#0C0C0C',borderRadius:10,padding:16,border:'1px solid #181818',minHeight:160}}>
+            {tab==='whatsapp'?(
+              <div style={{background:'#1B3A24',borderRadius:'12px 12px 2px 12px',padding:'10px 14px',display:'inline-block',maxWidth:'88%',float:'right'}}>
+                <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#F0F0F0',whiteSpace:'pre-wrap',lineHeight:1.65}}>{preview.replace(/\*(.*?)\*/g,'$1')}</pre>
+              </div>
+            ):(
+              <div>
+                <div style={{borderBottom:'1px solid #1C1C1C',paddingBottom:8,marginBottom:10}}><span style={{fontSize:11,color:'#555'}}>Assunto: </span><span style={{fontSize:13,fontWeight:600}}>{tpl.sf(ln)}</span></div>
+                <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#CCC',whiteSpace:'pre-wrap',lineHeight:1.75}}>{tpl.bf(ln,bn)}</pre>
+              </div>
+            )}
+            <div style={{clear:'both'}}/>
+          </div>
+          <div style={{marginTop:10,padding:'8px 12px',background:'#0C0C0C',borderRadius:7,border:'1px solid #181818',fontSize:11,color:'#444',textAlign:'center'}}>
+            💡 Copie e cole no {tab==='whatsapp'?'WhatsApp':'seu e-mail'}. Disparos automáticos via BotConversa em breve.
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
 
-function ModalImovel({onSave,onClose,corretor}){
-  const [f,setF]=useState({titulo:'',tipo:'Sala',preco:'',aluguel:'',localizacao:'',area:'',descricao:'',status:'Disponível'});
-  const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:7,padding:'9px 11px',color:'#F0F0F0',fontSize:13,outline:'none',marginBottom:12};
-  const lbl={fontSize:11,color:'#666',textTransform:'uppercase',letterSpacing:1,marginBottom:5,display:'block'};
-  return (
-    <div>
-      <div style={{background:GA,border:`1px solid ${G}33`,borderRadius:8,padding:'8px 12px',fontSize:12,color:G,marginBottom:16}}>
-        📌 Registrado em seu nome — <strong>{corretor?.nome}</strong>
-      </div>
-      <label style={lbl}>Título *</label>
-      <input style={inp} value={f.titulo} onChange={e=>set('titulo',e.target.value)} placeholder="Ex: Sala Comercial — Centro"/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><label style={lbl}>Tipo</label><select style={{...inp}} value={f.tipo} onChange={e=>set('tipo',e.target.value)}>{PROP_T.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
-        <div><label style={lbl}>Status</label><select style={{...inp}} value={f.status} onChange={e=>set('status',e.target.value)}>{['Disponível','Reservado','Negociando'].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-      </div>
-      <label style={lbl}>Localização *</label>
-      <input style={inp} value={f.localizacao} onChange={e=>set('localizacao',e.target.value)} placeholder="Ex: Centro, Blumenau"/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-        <div><label style={lbl}>Área (m²)</label><input style={inp} type="number" value={f.area} onChange={e=>set('area',e.target.value)} placeholder="0"/></div>
-        <div><label style={lbl}>Venda (R$)</label><input style={inp} type="number" value={f.preco} onChange={e=>set('preco',e.target.value)} placeholder="0"/></div>
-        <div><label style={lbl}>Aluguel/mês</label><input style={{...inp,marginBottom:0}} type="number" value={f.aluguel} onChange={e=>set('aluguel',e.target.value)} placeholder="0"/></div>
-      </div>
-      <label style={{...lbl,marginTop:12}}>Descrição</label>
-      <textarea style={{...inp,minHeight:68,resize:'vertical'}} value={f.descricao} onChange={e=>set('descricao',e.target.value)} placeholder="Descreva o imóvel..."/>
-      <div style={{display:'flex',gap:10,marginTop:4}}>
-        <button onClick={onClose} style={{flex:1,padding:11,borderRadius:8,background:'transparent',border:'1px solid #2A2A2A',color:'#888',fontSize:13,cursor:'pointer'}}>Cancelar</button>
-        <button onClick={()=>f.titulo&&f.localizacao&&onSave({...f,preco:Number(f.preco)||0,aluguel:Number(f.aluguel)||0,area:Number(f.area)||0})}
-          style={{flex:2,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>Registrar Imóvel</button>
-      </div>
-    </div>
-  );
-}
-
-/* ── MAIN APP ── */
+// ── APP PRINCIPAL ──
 function App(){
   const [user,setUser]=useState(null);
   const [sec,setSec]=useState('dashboard');
@@ -584,30 +989,34 @@ function App(){
   const [imoveis,setImoveis]=useState([]);
   const [tarefas,setTarefas]=useState([]);
   const [visitas,setVisitas]=useState([]);
+  const [corretores,setCorretores]=useState([]);
   const [loading,setLoading]=useState(false);
   const [modal,setModal]=useState(null);
+  const [sideOpen,setSideOpen]=useState(false);
 
   const isAdmin=user?.is_admin||false;
 
-  useEffect(()=>{if(user)loadAll();},[user]);
+  useEffect(()=>{if(user){loadAll();}},[ user]);
 
   const loadAll=async()=>{
     setLoading(true);
-    const [l,im,t,v]=await Promise.all([
+    const [l,im,t,v,c]=await Promise.all([
       db.from('leads').select('*').order('criado_em',{ascending:false}),
       db.from('imoveis').select('*').order('criado_em',{ascending:false}),
       db.from('tarefas').select('*').order('prazo',{ascending:true}),
       db.from('visitas').select('*').order('data',{ascending:true}),
+      db.from('corretores').select('*').order('nome'),
     ]);
     setLeads(l.data||[]);
     setImoveis(im.data||[]);
     setTarefas(t.data||[]);
     setVisitas(v.data||[]);
+    setCorretores(c.data||[]);
     setLoading(false);
   };
 
   const addLead=async(f)=>{
-    const bId=f.imovel_id?(imoveis.find(p=>p.id===f.imovel_id)?.captador_id||user?.id):user?.id;
+    const bId=f.imovel_id?(imoveis.find(p=>p.id===f.imovel_id)?.captador_id||user?.id):f.corretor_id||user?.id;
     const {data}=await db.from('leads').insert({...f,corretor_id:bId}).select().single();
     if(data)setLeads(p=>[data,...p]);
     setModal(null);
@@ -634,31 +1043,37 @@ function App(){
     {id:'imoveis',ic:IC.bld,l:'Imóveis'},
     {id:'agenda',ic:IC.cal,l:'Agenda'},
     {id:'tasks',ic:IC.task,l:'Tarefas'},
+    {id:'relatorios',ic:IC.chart,l:'Relatórios'},
     {id:'dispatch',ic:IC.send,l:'Disparos'},
   ];
-  const TITLES={dashboard:'Dashboard',pipeline:'Pipeline de Leads',imoveis:'Imóveis',agenda:'Agenda de Visitas',tasks:'Tarefas',dispatch:'Disparos'};
+  const TITLES={dashboard:'Dashboard',pipeline:'Pipeline de Leads',imoveis:'Imóveis',agenda:'Agenda de Visitas',tasks:'Tarefas',relatorios:'Relatórios',dispatch:'Disparos'};
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
-      <div style={{width:215,background:'#0D0D0D',borderRight:'1px solid #1C1C1C',display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div style={{padding:'18px 18px 14px',borderBottom:'1px solid #181818'}}>
-          <div style={{fontSize:16,fontWeight:800,color:G,letterSpacing:1}}>ALTHOFF</div>
-          <div style={{fontSize:10,color:'#444',letterSpacing:2.5,textTransform:'uppercase',marginTop:2}}>CRM Comercial</div>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',position:'relative'}}>
+      {/* Mobile overlay */}
+      <div className="overlay" style={{display:'none',position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:299}} onClick={()=>setSideOpen(false)}/>
+
+      {/* SIDEBAR */}
+      <div className={`sidebar${sideOpen?' open':''}`} style={{width:215,background:'#0D0D0D',borderRight:'1px solid #1C1C1C',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{padding:'16px 18px 12px',borderBottom:'1px solid #181818',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,color:G,letterSpacing:1}}>ALTHOFF</div>
+            <div style={{fontSize:10,color:'#444',letterSpacing:2.5,textTransform:'uppercase',marginTop:1}}>CRM Comercial</div>
+          </div>
+          <div className="sidebar-close" style={{cursor:'pointer',color:'#444',display:'none'}} onClick={()=>setSideOpen(false)}><Ico d={IC.close} size={18}/></div>
         </div>
-        <nav style={{flex:1,padding:'10px 8px'}}>
+        <nav style={{flex:1,padding:'10px 8px',overflowY:'auto'}}>
           {NAV.map(({id,ic,l})=>(
-            <div key={id} onClick={()=>setSec(id)}
-              style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',borderRadius:8,cursor:'pointer',marginBottom:2,background:sec===id?GA:'transparent',color:sec===id?G:'#555'}}>
+            <div key={id} onClick={()=>{setSec(id);setSideOpen(false);}}
+              style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',borderRadius:8,cursor:'pointer',marginBottom:2,background:sec===id?GA:'transparent',color:sec===id?G:'#555',transition:'all .15s'}}>
               <Ico d={ic} size={15} col={sec===id?G:'#555'}/>
               <span style={{fontSize:13,fontWeight:sec===id?600:400}}>{l}</span>
             </div>
           ))}
         </nav>
-        <div style={{padding:'12px 10px',borderTop:'1px solid #181818'}}>
-          <div style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',background:'#161616',borderRadius:8,border:'1px solid #222',marginBottom:8}}>
-            {isAdmin
-              ?<div style={{width:26,height:26,borderRadius:'50%',background:'#222',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Ico d={IC.shld} size={13} col={G}/></div>
-              :<Avatar b={user} size={26}/>}
+        <div style={{padding:'10px 10px',borderTop:'1px solid #181818'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'#161616',borderRadius:8,border:'1px solid #222',marginBottom:8}}>
+            {isAdmin?<div style={{width:26,height:26,borderRadius:'50%',background:'#222',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Ico d={IC.shld} size={13} col={G}/></div>:<Avatar b={user} size={26}/>}
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isAdmin?'Administrador':user?.nome}</div>
               <div style={{fontSize:10,color:'#444'}}>{isAdmin?'Acesso total':'Corretor(a)'}</div>
@@ -671,52 +1086,52 @@ function App(){
         </div>
       </div>
 
-      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{padding:'14px 22px',borderBottom:'1px solid #181818',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#0A0A0A',flexShrink:0}}>
-          <div>
-            <h1 style={{margin:0,fontSize:17,fontWeight:700}}>{TITLES[sec]}</h1>
-            <div style={{fontSize:11,color:'#444',marginTop:1}}>Althoff Grupo — CRM Comercial</div>
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:32,height:32,borderRadius:8,background:'#161616',border:'1px solid #222',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
-              <Ico d={IC.bell} size={15} col="#666"/>
+      {/* MAIN */}
+      <div className="main-content" style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{padding:'12px 18px',borderBottom:'1px solid #181818',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#0A0A0A',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{cursor:'pointer',color:'#555',display:'none'}} className="menu-btn" onClick={()=>setSideOpen(true)}><Ico d={IC.menu} size={20}/></div>
+            <div>
+              <h1 style={{margin:0,fontSize:16,fontWeight:700}}>{TITLES[sec]}</h1>
+              <div style={{fontSize:11,color:'#444',marginTop:1}}>Althoff Grupo</div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8,background:'#161616',border:`1px solid ${G}33`,borderRadius:8,padding:'5px 11px'}}>
-              {isAdmin?<Ico d={IC.shld} size={14} col={G}/>:<Avatar b={user} size={22}/>}
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,background:'#161616',border:`1px solid ${G}33`,borderRadius:8,padding:'5px 10px'}}>
+              {isAdmin?<Ico d={IC.shld} size={13} col={G}/>:<Avatar b={user} size={20}/>}
               <span style={{fontSize:12,fontWeight:600}}>{isAdmin?'Admin':user?.nome?.split(' ')[0]}</span>
             </div>
           </div>
         </div>
 
-        <div style={{flex:1,overflow:'auto',padding:22}}>
-          {loading?<Spin/>:(<>
-            {sec==='dashboard'&&<Dashboard leads={leads} tarefas={tarefas} visitas={visitas} setSec={setSec} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask}/>}
-            {sec==='pipeline'&&<Pipeline leads={leads} imoveis={imoveis} corretor={user} isAdmin={isAdmin} setLeads={setLeads} setModal={setModal}/>}
-            {sec==='imoveis'&&<Imoveis imoveis={imoveis} corretor={user} isAdmin={isAdmin} setImoveis={setImoveis} setModal={setModal}/>}
-            {sec==='agenda'&&<Agenda visitas={visitas} corretor={user} isAdmin={isAdmin}/>}
-            {sec==='tasks'&&<Tarefas tarefas={tarefas} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask}/>}
+        <div style={{flex:1,overflow:'auto',padding:'18px 20px'}}>
+          {loading?<Spin/>:<>
+            {sec==='dashboard'&&<Dashboard leads={leads} tarefas={tarefas} visitas={visitas} setSec={setSec} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask} corretores={corretores}/>}
+            {sec==='pipeline'&&<Pipeline leads={leads} imoveis={imoveis} corretor={user} isAdmin={isAdmin} setLeads={setLeads} setModal={setModal} corretores={corretores}/>}
+            {sec==='imoveis'&&<Imoveis imoveis={imoveis} corretor={user} isAdmin={isAdmin} setImoveis={setImoveis} setModal={setModal} corretores={corretores}/>}
+            {sec==='agenda'&&<Agenda visitas={visitas} corretor={user} isAdmin={isAdmin} corretores={corretores}/>}
+            {sec==='tasks'&&<Tarefas tarefas={tarefas} setTarefas={setTarefas} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask} corretores={corretores}/>}
+            {sec==='relatorios'&&<Relatorios leads={leads} tarefas={tarefas} visitas={visitas} corretores={corretores} isAdmin={isAdmin} corretor={user}/>}
             {sec==='dispatch'&&<Disparos corretor={user}/>}
-          </>)}
+          </>}
         </div>
       </div>
 
-      {modal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={()=>setModal(null)}>
-          <div style={{background:'#141414',border:'1px solid #272727',borderRadius:16,padding:24,width:modal==='addImovel'?480:420,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
-              <h2 style={{margin:0,fontSize:16,fontWeight:700}}>{modal==='addLead'?'Novo Lead':'Captar Imóvel'}</h2>
-              <div onClick={()=>setModal(null)} style={{cursor:'pointer',color:'#666'}}><Ico d={IC.x} size={17}/></div>
-            </div>
-            {modal==='addLead'&&<ModalLead onSave={addLead} onClose={()=>setModal(null)} corretor={user} imoveis={imoveis} isAdmin={isAdmin}/>}
-            {modal==='addImovel'&&<ModalImovel onSave={addImovel} onClose={()=>setModal(null)} corretor={user}/>}
-          </div>
-        </div>
-      )}
+      {/* MODALS */}
+      {modal==='addLead'&&<Modal title="Novo Lead" onClose={()=>setModal(null)} width={460}><FormLead onSave={addLead} onClose={()=>setModal(null)} corretor={user} imoveis={imoveis} corretores={corretores} isAdmin={isAdmin}/></Modal>}
+      {modal==='addImovel'&&<Modal title="Captar Imóvel" onClose={()=>setModal(null)} width={480}><FormImovel onSave={addImovel} onClose={()=>setModal(null)} corretor={user}/></Modal>}
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
+<style>
+@media(max-width:768px){
+  .sidebar-close{display:flex!important}
+  .menu-btn{display:flex!important}
+  .overlay{display:block!important}
+}
+</style>
 </body>
 </html>
