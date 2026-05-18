@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Althoff CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080808;color:#F0F0F0;font-family:system-ui,-apple-system,sans-serif}
+input,select,textarea,button{font-family:inherit}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2A2A2A;border-radius:3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect} = React;
+
+const db = supabase.createClient(
+  'https://dallqyjpjcrxgpluxdou.supabase.co',
+  'sb_publishable_DL59lMAVGUOu_Awc2nkWQw_LwZALtTy'
+);
+
+const G='#C8912A', GA='rgba(200,145,42,0.12)';
+const ST=['Novo','Contato Feito','Visita Agendada','Proposta','Negociando','Fechado','Perdido'];
+const SC={'Novo':'#3B82F6','Contato Feito':'#8B5CF6','Visita Agendada':G,'Proposta':'#F97316','Negociando':'#06B6D4','Fechado':'#22C55E','Perdido':'#EF4444'};
+const PRI_C={'Alta':'#EF4444','Média':G,'Baixa':'#3B82F6'};
+const PROP_T=['Sala','Loja','Galpão','Conjunto','Escritório','Ponto Comercial','Outro'];
+
+const WA_TPL=[
+  {name:'Boas-vindas',fn:(l,b)=>`Olá, *${l}*! 😊\n\nSou *${b}* da *Althoff Grupo*, assessoria especializada em imóveis comerciais.\n\nRecebi seu contato e estou à disposição para encontrar o imóvel ideal. Podemos conversar? 🏢\n\n*${b}* — Althoff Grupo`},
+  {name:'Confirmação de Visita',fn:(l,b)=>`Olá, *${l}*! 🏢\n\nConfirmando nossa visita. Qualquer dúvida é só avisar!\n\n*${b}* — Althoff Grupo`},
+  {name:'Envio de Proposta',fn:(l,b)=>`Olá, *${l}*! 📋\n\nSegue a proposta preparada especialmente para você. Estou à disposição para negociar. 🤝\n\n*${b}* — Althoff Grupo`},
+  {name:'Follow-up',fn:(l,b)=>`Olá, *${l}*! Como você está?\n\nGostaria de saber se podemos avançar na negociação. Estou aqui para ajudar! 😊\n\n*${b}* — Althoff Grupo`},
+];
+const EM_TPL=[
+  {name:'Apresentação',sf:()=>'Imóvel Comercial Ideal | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nMeu nome é ${b}, assessor(a) da Althoff Grupo.\n\nIdentificamos oportunidades que podem atender as necessidades do seu negócio em Blumenau. Gostaria de agendar uma conversa?\n\nAtenciosamente,\n${b}\nAlthoff Grupo\nwww.althoffgrupo.com.br`},
+  {name:'Pós-visita',sf:()=>'Como foi sua impressão? | Althoff Grupo',bf:(l,b)=>`Prezado(a) ${l},\n\nFoi um prazer recebê-lo(a)!\n\nGostaríamos de saber sua opinião e esclarecer qualquer dúvida.\n\nAtenciosamente,\n${b}\nAlthoff Grupo`},
+];
+
+const Ico=({d,size=16,col='currentColor'})=>(
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {(Array.isArray(d)?d:[d]).map((p,i)=><path key={i} d={p}/>)}
+  </svg>
+);
+const IC={
+  dash:'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  users:['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2','M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'],
+  bld:['M6 22V12h12v10','M2 22h20','M12 2L2 9h20z'],
+  cal:'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  task:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+  send:'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
+  plus:['M12 5v14','M5 12h14'],
+  x:['M18 6L6 18','M6 6l12 12'],
+  chk:'M20 6L9 17l-5-5',
+  bell:['M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9','M13.73 21a2 2 0 0 1-3.46 0'],
+  out:['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4','M16 17l5-5-5-5','M21 12H9'],
+  shld:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10',
+  eye:['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8','M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
+  noeye:['M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24','M1 1l22 22'],
+  pin:['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z','M12 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
+  trend:'M23 6l-9.5 9.5-5-5L1 18',
+  clk:['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z','M12 6v6l4 2'],
+  ph:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 9.8 19.79 19.79 0 0 1 1.1 1.17 2 2 0 0 1 3.09 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.5a16 16 0 0 0 6.29 6.29l1.42-1.42a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+};
+
+const Avatar=({b,size=28})=>(
+  <div style={{width:size,height:size,borderRadius:'50%',background:b?.cor||'#555',display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.36,fontWeight:700,color:'#fff',flexShrink:0}}>
+    {b?.iniciais}
+  </div>
+);
+const Badge=({label,color})=>(
+  <span style={{background:`${color}1A`,color,border:`1px solid ${color}33`,borderRadius:20,padding:'2px 9px',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{label}</span>
+);
+const Card=({children,style={}})=>(
+  <div style={{background:'#141414',border:'1px solid #222',borderRadius:12,...style}}>{children}</div>
+);
+const Spin=()=>(
+  <div style={{display:'flex',justifyContent:'center',padding:48}}>
+    <div style={{width:28,height:28,border:'3px solid #222',borderTop:`3px solid ${G}`,borderRadius:'50%',animation:'spin .8s linear infinite'}}/>
+  </div>
+);
+const fmt=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v||0);
+
+/* ── LOGIN ── */
+function Login({onLogin}){
+  const [email,setEmail]=useState('');
+  const [pass,setPass]=useState('');
+  const [showP,setShowP]=useState(false);
+  const [err,setErr]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [hints,setHints]=useState(false);
+
+  const doLogin=async()=>{
+    if(!email||!pass){setErr('Preencha e-mail e senha.');return;}
+    setLoading(true);setErr('');
+    const {data,error}=await db.from('corretores').select('*').eq('email',email.trim().toLowerCase()).eq('senha',pass).single();
+    setLoading(false);
+    if(error||!data){setErr('E-mail ou senha incorretos.');return;}
+    onLogin(data);
+  };
+
+  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:8,padding:'11px 14px',color:'#F0F0F0',fontSize:14,outline:'none'};
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:360,padding:'0 20px'}}>
+        <div style={{textAlign:'center',marginBottom:36}}>
+          <div style={{fontSize:28,fontWeight:800,color:G,letterSpacing:2,marginBottom:6}}>ALTHOFF</div>
+          <div style={{fontSize:10,color:'#444',letterSpacing:3,textTransform:'uppercase'}}>CRM Comercial</div>
+        </div>
+        <Card style={{padding:28}}>
+          <h2 style={{margin:'0 0 22px',fontSize:17,fontWeight:700}}>Entrar na sua conta</h2>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>E-mail</div>
+            <input style={inp} type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="seu@althoff.com.br" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>Senha</div>
+            <div style={{position:'relative'}}>
+              <input style={{...inp,paddingRight:42}} type={showP?'text':'password'} value={pass} onChange={e=>{setPass(e.target.value);setErr('');}} placeholder="••••••" onKeyDown={e=>e.key==='Enter'&&doLogin()}/>
+              <div onClick={()=>setShowP(!showP)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#555'}}>
+                <Ico d={showP?IC.noeye:IC.eye} size={16}/>
+              </div>
+            </div>
+          </div>
+          {err&&<div style={{background:'#EF444418',border:'1px solid #EF444430',borderRadius:7,padding:'8px 12px',fontSize:12,color:'#EF4444',marginBottom:14}}>{err}</div>}
+          <button onClick={doLogin} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:16,opacity:loading?0.7:1}}>
+            {loading?'Entrando...':'Entrar'}
+          </button>
+          <div onClick={()=>setHints(!hints)} style={{textAlign:'center',fontSize:12,color:'#444',cursor:'pointer'}}>{hints?'▲ Ocultar':'▼ Ver acessos de teste'}</div>
+          {hints&&(
+            <div style={{marginTop:14,padding:14,background:'#0E0E0E',borderRadius:8,border:'1px solid #1C1C1C'}}>
+              <div style={{fontSize:10,color:'#444',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>Clique para preencher</div>
+              {[['ana@althoff.com.br','123456'],['carlos@althoff.com.br','123456'],['admin@althoff.com.br','admin123']].map(([e,p])=>(
+                <div key={e} onClick={()=>{setEmail(e);setPass(p);setErr('');}}
+                  style={{padding:'6px 8px',borderRadius:6,cursor:'pointer',marginBottom:3,background:email===e?GA:'transparent'}}>
+                  <div style={{fontSize:11,color:'#CCC'}}>{e}</div>
+                  <div style={{fontSize:10,color:'#444'}}>senha: {p}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ── DASHBOARD ── */
+function Dashboard({leads,tarefas,visitas,setSec,corretor,isAdmin,toggleTask}){
+  const mine=isAdmin?leads:leads.filter(l=>l.corretor_id===corretor?.id);
+  const active=mine.filter(l=>!['Fechado','Perdido'].includes(l.status));
+  const closed=mine.filter(l=>l.status==='Fechado');
+  const myT=isAdmin?tarefas:tarefas.filter(t=>t.corretor_id===corretor?.id);
+  const myV=isAdmin?visitas:visitas.filter(v=>v.corretor_id===corretor?.id);
+  const stats=[
+    {l:isAdmin?'Total Leads':'Meus Leads',v:mine.length,sub:`${active.length} ativos`,col:'#3B82F6',ic:IC.users},
+    {l:'Pipeline',v:fmt(active.reduce((s,l)=>s+(l.valor||0),0)),sub:'em negociação',col:G,ic:IC.trend},
+    {l:'Fechamentos',v:closed.length,sub:fmt(closed.reduce((s,l)=>s+(l.valor||0),0)),col:'#22C55E',ic:IC.chk},
+    {l:'Tarefas',v:myT.filter(t=>!t.concluida).length,sub:'pendentes',col:'#F97316',ic:IC.clk},
+  ];
+  return (
+    <div>
+      {isAdmin&&<div style={{background:'#1A1A0E',border:`1px solid ${G}33`,borderRadius:8,padding:'8px 14px',fontSize:12,color:G,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ico d={IC.shld} size={13}/> Modo Administrador</div>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
+        {stats.map(({l,v,sub,col,ic})=>(
+          <Card key={l} style={{padding:16}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <span style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:1.2}}>{l}</span>
+              <div style={{width:30,height:30,borderRadius:7,background:`${col}18`,display:'flex',alignItems:'center',justifyContent:'center'}}><Ico d={ic} size={14} col={col}/></div>
+            </div>
+            <div style={{fontSize:20,fontWeight:700,color:col,marginBottom:3}}>{v}</div>
+            <div style={{fontSize:11,color:'#444'}}>{sub}</div>
+          </Card>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        <Card style={{padding:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+            <span style={{fontWeight:600,fontSize:13}}>{isAdmin?'Leads Recentes':'Meus Leads'}</span>
+            <span onClick={()=>setSec('pipeline')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver todos →</span>
+          </div>
+          {mine.slice(0,6).map(l=>(
+            <div key={l.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
+              <div style={{width:32,height:32,borderRadius:8,background:GA,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:G,flexShrink:0}}>{(l.nome||'?')[0]}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.nome}</div>
+                <div style={{fontSize:11,color:'#555'}}>{l.interesse}</div>
+              </div>
+              <Badge label={l.status} color={SC[l.status]||'#888'}/>
+            </div>
+          ))}
+          {mine.length===0&&<div style={{fontSize:12,color:'#333',padding:'12px 0'}}>Nenhum lead ainda.</div>}
+        </Card>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <Card style={{padding:16}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <span style={{fontWeight:600,fontSize:13}}>Próximas Visitas</span>
+              <span onClick={()=>setSec('agenda')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver →</span>
+            </div>
+            {myV.slice(0,3).map(v=>(
+              <div key={v.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
+                <div style={{background:GA,borderRadius:7,padding:'4px 9px',textAlign:'center',flexShrink:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
+                  <div style={{fontSize:9,color:'#555'}}>{v.data?.slice(8)}/{v.data?.slice(5,7)}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v.lead_nome}</div>
+                  <div style={{fontSize:11,color:'#555',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v.imovel_titulo}</div>
+                </div>
+              </div>
+            ))}
+            {myV.length===0&&<div style={{fontSize:12,color:'#333',padding:'8px 0'}}>Nenhuma visita agendada.</div>}
+          </Card>
+          <Card style={{padding:16}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <span style={{fontWeight:600,fontSize:13}}>Tarefas Urgentes</span>
+              <span onClick={()=>setSec('tasks')} style={{fontSize:11,color:G,cursor:'pointer'}}>Ver →</span>
+            </div>
+            {myT.filter(t=>!t.concluida&&t.prioridade==='Alta').slice(0,3).map(t=>(
+              <div key={t.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'1px solid #181818'}}>
+                <div onClick={()=>toggleTask(t.id)} style={{cursor:'pointer',flexShrink:0,color:'#333'}}><Ico d={['M12 2a10 10 0 1 0 0 20','M12 6v6l4 2']} size={15}/></div>
+                <span style={{fontSize:12,flex:1}}>{t.titulo}</span>
+                <span style={{fontSize:10,color:'#EF4444',background:'#EF444418',borderRadius:4,padding:'2px 6px',flexShrink:0}}>{t.prazo?.slice(8)}/{t.prazo?.slice(5,7)}</span>
+              </div>
+            ))}
+            {myT.filter(t=>!t.concluida&&t.prioridade==='Alta').length===0&&<div style={{fontSize:12,color:'#333',padding:'8px 0'}}>Sem urgências! ✓</div>}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── PIPELINE ── */
+function Pipeline({leads,imoveis,corretor,isAdmin,setLeads,setModal}){
+  const [showAll,setShowAll]=useState(isAdmin);
+  const [sel,setSel]=useState(null);
+  const filtered=showAll?leads:leads.filter(l=>l.corretor_id===corretor?.id);
+  const cols=ST.slice(0,-1);
+
+  const moveLead=async(id,status)=>{
+    await db.from('leads').update({status}).eq('id',id);
+    setLeads(p=>p.map(l=>l.id===id?{...l,status}:l));
+    setSel(null);
+  };
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+        {isAdmin?(
+          <div style={{display:'flex',gap:6}}>
+            {[[true,'Todos'],[false,'Meus']].map(([a,l])=>(
+              <button key={String(a)} onClick={()=>setShowAll(a)}
+                style={{padding:'6px 14px',borderRadius:6,border:`1px solid ${showAll===a?G:'#2A2A2A'}`,background:showAll===a?GA:'transparent',color:showAll===a?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
+            ))}
+          </div>
+        ):<div style={{fontSize:12,color:'#555'}}>Meus leads — {filtered.filter(l=>!['Fechado','Perdido'].includes(l.status)).length} ativos</div>}
+        <button onClick={()=>setModal('addLead')} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+          <Ico d={IC.plus} size={14}/> Novo Lead
+        </button>
+      </div>
+      <div style={{display:'flex',gap:11,overflowX:'auto',paddingBottom:12}}>
+        {cols.map(status=>{
+          const col=SC[status];
+          const sLeads=filtered.filter(l=>l.status===status);
+          return (
+            <div key={status} style={{minWidth:185,flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <div style={{width:7,height:7,borderRadius:'50%',background:col}}/>
+                  <span style={{fontSize:11,fontWeight:600,color:'#AAA'}}>{status}</span>
+                </div>
+                <span style={{fontSize:10,background:'#1C1C1C',color:'#555',borderRadius:10,padding:'1px 7px'}}>{sLeads.length}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {sLeads.map(l=>{
+                  const open=sel===l.id;
+                  return (
+                    <div key={l.id} onClick={()=>setSel(open?null:l.id)}
+                      style={{background:'#141414',border:`1px solid ${open?col:'#212121'}`,borderRadius:10,padding:11,cursor:'pointer'}}>
+                      <div style={{fontSize:12,fontWeight:600,marginBottom:3}}>{l.nome}</div>
+                      <div style={{fontSize:11,color:'#555',marginBottom:8}}>{l.interesse}</div>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <span style={{fontSize:12,color:G,fontWeight:600}}>{fmt(l.valor)}</span>
+                      </div>
+                      {open&&(
+                        <div style={{marginTop:9,paddingTop:9,borderTop:'1px solid #1E1E1E'}}>
+                          <div style={{fontSize:10,color:'#555',marginBottom:5}}>Mover para:</div>
+                          <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                            {ST.filter(s=>s!==status).map(s=>(
+                              <span key={s} onClick={e=>{e.stopPropagation();moveLead(l.id,s);}}
+                                style={{fontSize:10,background:`${SC[s]}15`,color:SC[s],border:`1px solid ${SC[s]}30`,borderRadius:4,padding:'2px 5px',cursor:'pointer'}}>{s}</span>
+                            ))}
+                          </div>
+                          {l.telefone&&<a href={`tel:${l.telefone}`} style={{display:'flex',alignItems:'center',gap:3,fontSize:11,color:'#22C55E',textDecoration:'none',marginTop:8}}><Ico d={IC.ph} size={10}/>{l.telefone}</a>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── IMÓVEIS ── */
+function Imoveis({imoveis,corretor,isAdmin,setImoveis,setModal}){
+  const [tab,setTab]=useState('all');
+  const stC={Disponível:'#22C55E',Negociando:G,Reservado:'#8B5CF6'};
+  const shown=tab==='mine'?imoveis.filter(p=>p.captador_id===corretor?.id):imoveis;
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+        <div style={{display:'flex',gap:6}}>
+          {[['all','Todos'],['mine','Meus Imóveis']].map(([t,l])=>(
+            <button key={t} onClick={()=>setTab(t)}
+              style={{padding:'6px 14px',borderRadius:6,border:`1px solid ${tab===t?G:'#2A2A2A'}`,background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontSize:12,cursor:'pointer'}}>{l}</button>
+          ))}
+        </div>
+        <button onClick={()=>setModal('addImovel')} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+          <Ico d={IC.plus} size={14}/> Captar Imóvel
+        </button>
+      </div>
+      {shown.length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:'#333'}}>Nenhum imóvel. Clique em "Captar Imóvel".</div>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
+        {shown.map(p=>(
+          <Card key={p.id} style={{overflow:'hidden'}}>
+            <div style={{height:88,background:'linear-gradient(135deg,#181818,#222)',display:'flex',alignItems:'center',justifyContent:'center',borderBottom:'1px solid #1C1C1C',position:'relative'}}>
+              <Ico d={IC.bld} size={38} col="#2A2A2A"/>
+              <div style={{position:'absolute',top:9,right:9}}><Badge label={p.status} color={stC[p.status]||'#888'}/></div>
+              <div style={{position:'absolute',top:9,left:9,background:'#161616',border:'1px solid #2A2A2A',borderRadius:5,padding:'2px 8px',fontSize:10,color:'#666'}}>{p.tipo}</div>
+            </div>
+            <div style={{padding:13}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:4,lineHeight:1.3}}>{p.titulo}</div>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}><Ico d={IC.pin} size={10} col="#555"/><span style={{fontSize:11,color:'#555'}}>{p.localizacao}</span></div>
+              {p.descricao&&<div style={{fontSize:11,color:'#444',marginBottom:8,lineHeight:1.5}}>{p.descricao}</div>}
+              <span style={{fontSize:11,background:'#1C1C1C',color:'#777',borderRadius:5,padding:'3px 8px'}}>{p.area}m²</span>
+              <div style={{borderTop:'1px solid #1C1C1C',marginTop:10,paddingTop:10,display:'flex',justifyContent:'space-between'}}>
+                <div><div style={{fontSize:10,color:'#444'}}>Venda</div><div style={{fontSize:14,fontWeight:700,color:G}}>{p.preco?fmt(p.preco):'—'}</div></div>
+                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#444'}}>Aluguel</div><div style={{fontSize:12,fontWeight:600,color:'#BBB'}}>{p.aluguel?`${fmt(p.aluguel)}/mês`:'—'}</div></div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── AGENDA ── */
+function Agenda({visitas,corretor,isAdmin}){
+  const mine=isAdmin?visitas:visitas.filter(v=>v.corretor_id===corretor?.id);
+  const grouped=mine.reduce((a,v)=>{(a[v.data]=a[v.data]||[]).push(v);return a;},{});
+  const DAYS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:18}}>
+        <button style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}><Ico d={IC.plus} size={14}/> Agendar Visita</button>
+      </div>
+      {Object.keys(grouped).length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:'#333'}}>Nenhuma visita agendada.</div>}
+      {Object.keys(grouped).sort().map(date=>{
+        const d=new Date(date+'T12:00:00');
+        return (
+          <div key={date} style={{marginBottom:22}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+              <div style={{background:GA,border:`1px solid ${G}33`,borderRadius:9,padding:'5px 13px',textAlign:'center',flexShrink:0}}>
+                <div style={{fontSize:10,color:G,fontWeight:600}}>{DAYS[d.getDay()]}</div>
+                <div style={{fontSize:20,fontWeight:800,color:G,lineHeight:1}}>{d.getDate()}</div>
+                <div style={{fontSize:9,color:'#555'}}>{MONTHS[d.getMonth()]}</div>
+              </div>
+              <div style={{flex:1,height:1,background:'#1A1A1A'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginLeft:72}}>
+              {grouped[date].map(v=>(
+                <Card key={v.id} style={{padding:'13px 15px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:11}}>
+                    <div style={{background:'#1C1C1C',borderRadius:7,padding:'5px 11px',flexShrink:0,textAlign:'center'}}>
+                      <div style={{fontSize:17,fontWeight:700,color:G}}>{v.hora?.slice(0,5)}</div>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:700}}>{v.lead_nome}</div>
+                      <div style={{fontSize:11,color:'#555'}}>{v.imovel_titulo}</div>
+                    </div>
+                    <Badge label={v.status} color={v.status==='Confirmada'?'#22C55E':G}/>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── TAREFAS ── */
+function Tarefas({tarefas,corretor,isAdmin,toggleTask}){
+  const mine=isAdmin?tarefas:tarefas.filter(t=>t.corretor_id===corretor?.id);
+  const pending=mine.filter(t=>!t.concluida);
+  const done=mine.filter(t=>t.concluida);
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:18}}>
+        <button style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'}}><Ico d={IC.plus} size={14}/> Nova Tarefa</button>
+      </div>
+      <div style={{marginBottom:22}}>
+        <div style={{fontSize:11,color:'#555',fontWeight:600,textTransform:'uppercase',letterSpacing:1.2,marginBottom:10}}>Pendentes ({pending.length})</div>
+        {pending.map(t=>(
+          <Card key={t.id} style={{padding:'11px 15px',marginBottom:7}}>
+            <div style={{display:'flex',alignItems:'center',gap:11}}>
+              <div onClick={()=>toggleTask(t.id)} style={{width:19,height:19,borderRadius:'50%',border:'2px solid #2E2E2E',cursor:'pointer',flexShrink:0}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600}}>{t.titulo}</div>
+                <div style={{fontSize:11,color:'#555',marginTop:2}}>{t.tipo} · {t.prazo?.slice(8)}/{t.prazo?.slice(5,7)}</div>
+              </div>
+              <Badge label={t.prioridade} color={PRI_C[t.prioridade]||'#888'}/>
+            </div>
+          </Card>
+        ))}
+        {pending.length===0&&<div style={{fontSize:13,color:'#333',padding:'20px 0',textAlign:'center'}}>Todas as tarefas concluídas! 🎉</div>}
+      </div>
+      {done.length>0&&(
+        <div>
+          <div style={{fontSize:11,color:'#333',fontWeight:600,textTransform:'uppercase',letterSpacing:1.2,marginBottom:10}}>Concluídas ({done.length})</div>
+          {done.map(t=>(
+            <div key={t.id} style={{display:'flex',alignItems:'center',gap:11,padding:'9px 15px',background:'#0E0E0E',borderRadius:8,border:'1px solid #181818',opacity:0.55,marginBottom:5}}>
+              <div onClick={()=>toggleTask(t.id)} style={{width:19,height:19,borderRadius:'50%',background:'#22C55E18',border:'2px solid #22C55E',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Ico d={IC.chk} size={10} col="#22C55E"/></div>
+              <span style={{fontSize:12,textDecoration:'line-through',color:'#444'}}>{t.titulo}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── DISPAROS ── */
+function Disparos({corretor}){
+  const [tab,setTab]=useState('whatsapp');
+  const [tIdx,setTIdx]=useState(0);
+  const [lead,setLead]=useState('');
+  const [copied,setCopied]=useState(false);
+  const tpls=tab==='whatsapp'?WA_TPL:EM_TPL;
+  const tpl=tpls[Math.min(tIdx,tpls.length-1)];
+  const ln=lead||'Cliente';
+  const bn=corretor?.nome||'Corretor';
+  const preview=tab==='whatsapp'?tpl.fn(ln,bn):`Assunto: ${tpl.sf(ln)}\n\n${tpl.bf(ln,bn)}`;
+  const copy=()=>{navigator.clipboard.writeText(preview);setCopied(true);setTimeout(()=>setCopied(false),2000);};
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'265px 1fr',gap:18}}>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <Card style={{padding:5,display:'flex',gap:4}}>
+          {[['whatsapp','WhatsApp'],['email','E-mail']].map(([t,l])=>(
+            <button key={t} onClick={()=>{setTab(t);setTIdx(0);}}
+              style={{flex:1,padding:8,borderRadius:7,border:'none',background:tab===t?GA:'transparent',color:tab===t?G:'#555',fontWeight:tab===t?700:400,fontSize:12,cursor:'pointer'}}>{l}</button>
+          ))}
+        </Card>
+        <Card style={{padding:13}}>
+          <div style={{fontSize:10,color:'#555',marginBottom:6,textTransform:'uppercase',letterSpacing:1.2}}>Nome do Lead</div>
+          <input value={lead} onChange={e=>setLead(e.target.value)} placeholder="Ex: João Silva"
+            style={{width:'100%',background:'#1C1C1C',border:'1px solid #272727',borderRadius:6,padding:'8px 10px',color:'#F0F0F0',fontSize:13,outline:'none'}}/>
+        </Card>
+        <Card style={{padding:13}}>
+          <div style={{fontSize:10,color:'#555',marginBottom:9,textTransform:'uppercase',letterSpacing:1.2}}>Modelo</div>
+          {tpls.map((t,i)=>(
+            <div key={i} onClick={()=>setTIdx(i)}
+              style={{padding:'8px 11px',borderRadius:7,cursor:'pointer',marginBottom:3,background:tIdx===i?GA:'transparent',border:`1px solid ${tIdx===i?G+'44':'transparent'}`,fontSize:12,color:tIdx===i?G:'#777'}}>{t.name}</div>
+          ))}
+        </Card>
+      </div>
+      <Card style={{padding:18,display:'flex',flexDirection:'column'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:15}}>
+          <div><div style={{fontWeight:700,fontSize:14}}>Prévia</div><div style={{fontSize:11,color:'#444',marginTop:1}}>Enviando como: {bn}</div></div>
+          <button onClick={copy} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:7,background:copied?'#22C55E18':GA,border:`1px solid ${copied?'#22C55E44':G+'44'}`,color:copied?'#22C55E':G,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            {copied?<><Ico d={IC.chk} size={13}/> Copiado!</>:'Copiar'}
+          </button>
+        </div>
+        <div style={{flex:1,background:'#0C0C0C',borderRadius:10,padding:18,border:'1px solid #181818',minHeight:180}}>
+          {tab==='whatsapp'?(
+            <div style={{background:'#1B3A24',borderRadius:'12px 12px 2px 12px',padding:'11px 14px',display:'inline-block',maxWidth:'85%',float:'right'}}>
+              <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#F0F0F0',whiteSpace:'pre-wrap',lineHeight:1.65}}>{preview.replace(/\*(.*?)\*/g,'$1')}</pre>
+            </div>
+          ):(
+            <div>
+              <div style={{borderBottom:'1px solid #1C1C1C',paddingBottom:9,marginBottom:10}}><span style={{fontSize:11,color:'#555'}}>Assunto: </span><span style={{fontSize:13,fontWeight:600}}>{tpl.sf(ln)}</span></div>
+              <pre style={{margin:0,fontFamily:'system-ui',fontSize:13,color:'#CCC',whiteSpace:'pre-wrap',lineHeight:1.75}}>{tpl.bf(ln,bn)}</pre>
+            </div>
+          )}
+          <div style={{clear:'both'}}/>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ── MODALS ── */
+function ModalLead({onSave,onClose,corretor,imoveis,isAdmin}){
+  const [f,setF]=useState({nome:'',telefone:'',email:'',interesse:'',status:'Novo',valor:'',imovel_id:''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:7,padding:'9px 11px',color:'#F0F0F0',fontSize:13,outline:'none',marginBottom:12};
+  const lbl={fontSize:11,color:'#666',textTransform:'uppercase',letterSpacing:1,marginBottom:5,display:'block'};
+  const handleProp=v=>{set('imovel_id',v);if(v){const p=imoveis.find(x=>String(x.id)===v);if(p)set('interesse',p.titulo);}};
+  return (
+    <div>
+      <label style={lbl}>Nome *</label>
+      <input style={inp} value={f.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome ou empresa"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl}>Telefone</label><input style={inp} value={f.telefone} onChange={e=>set('telefone',e.target.value)} placeholder="(47) 99999-9999"/></div>
+        <div><label style={lbl}>E-mail</label><input style={inp} value={f.email} onChange={e=>set('email',e.target.value)} placeholder="email@ex.com"/></div>
+      </div>
+      <label style={lbl}>Imóvel de interesse</label>
+      <select style={{...inp}} value={f.imovel_id} onChange={e=>handleProp(e.target.value)}>
+        <option value="">Selecionar imóvel (opcional)</option>
+        {imoveis.filter(p=>p.status!=='Reservado').map(p=><option key={p.id} value={String(p.id)}>{p.titulo}</option>)}
+      </select>
+      <label style={lbl}>Interesse / Descrição</label>
+      <input style={inp} value={f.interesse} onChange={e=>set('interesse',e.target.value)} placeholder="Ex: Sala comercial..."/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl}>Status</label><select style={{...inp,marginBottom:0}} value={f.status} onChange={e=>set('status',e.target.value)}>{ST.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label style={lbl}>Valor (R$)</label><input style={{...inp,marginBottom:0}} type="number" value={f.valor} onChange={e=>set('valor',e.target.value)} placeholder="0"/></div>
+      </div>
+      <div style={{display:'flex',gap:10,marginTop:20}}>
+        <button onClick={onClose} style={{flex:1,padding:11,borderRadius:8,background:'transparent',border:'1px solid #2A2A2A',color:'#888',fontSize:13,cursor:'pointer'}}>Cancelar</button>
+        <button onClick={()=>f.nome&&onSave({...f,valor:Number(f.valor)||0,imovel_id:f.imovel_id?Number(f.imovel_id):null})}
+          style={{flex:2,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>Adicionar Lead</button>
+      </div>
+    </div>
+  );
+}
+
+function ModalImovel({onSave,onClose,corretor}){
+  const [f,setF]=useState({titulo:'',tipo:'Sala',preco:'',aluguel:'',localizacao:'',area:'',descricao:'',status:'Disponível'});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const inp={width:'100%',background:'#1C1C1C',border:'1px solid #2A2A2A',borderRadius:7,padding:'9px 11px',color:'#F0F0F0',fontSize:13,outline:'none',marginBottom:12};
+  const lbl={fontSize:11,color:'#666',textTransform:'uppercase',letterSpacing:1,marginBottom:5,display:'block'};
+  return (
+    <div>
+      <div style={{background:GA,border:`1px solid ${G}33`,borderRadius:8,padding:'8px 12px',fontSize:12,color:G,marginBottom:16}}>
+        📌 Registrado em seu nome — <strong>{corretor?.nome}</strong>
+      </div>
+      <label style={lbl}>Título *</label>
+      <input style={inp} value={f.titulo} onChange={e=>set('titulo',e.target.value)} placeholder="Ex: Sala Comercial — Centro"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><label style={lbl}>Tipo</label><select style={{...inp}} value={f.tipo} onChange={e=>set('tipo',e.target.value)}>{PROP_T.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <div><label style={lbl}>Status</label><select style={{...inp}} value={f.status} onChange={e=>set('status',e.target.value)}>{['Disponível','Reservado','Negociando'].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+      </div>
+      <label style={lbl}>Localização *</label>
+      <input style={inp} value={f.localizacao} onChange={e=>set('localizacao',e.target.value)} placeholder="Ex: Centro, Blumenau"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        <div><label style={lbl}>Área (m²)</label><input style={inp} type="number" value={f.area} onChange={e=>set('area',e.target.value)} placeholder="0"/></div>
+        <div><label style={lbl}>Venda (R$)</label><input style={inp} type="number" value={f.preco} onChange={e=>set('preco',e.target.value)} placeholder="0"/></div>
+        <div><label style={lbl}>Aluguel/mês</label><input style={{...inp,marginBottom:0}} type="number" value={f.aluguel} onChange={e=>set('aluguel',e.target.value)} placeholder="0"/></div>
+      </div>
+      <label style={{...lbl,marginTop:12}}>Descrição</label>
+      <textarea style={{...inp,minHeight:68,resize:'vertical'}} value={f.descricao} onChange={e=>set('descricao',e.target.value)} placeholder="Descreva o imóvel..."/>
+      <div style={{display:'flex',gap:10,marginTop:4}}>
+        <button onClick={onClose} style={{flex:1,padding:11,borderRadius:8,background:'transparent',border:'1px solid #2A2A2A',color:'#888',fontSize:13,cursor:'pointer'}}>Cancelar</button>
+        <button onClick={()=>f.titulo&&f.localizacao&&onSave({...f,preco:Number(f.preco)||0,aluguel:Number(f.aluguel)||0,area:Number(f.area)||0})}
+          style={{flex:2,padding:11,borderRadius:8,background:G,border:'none',color:'#000',fontWeight:700,fontSize:14,cursor:'pointer'}}>Registrar Imóvel</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── MAIN APP ── */
+function App(){
+  const [user,setUser]=useState(null);
+  const [sec,setSec]=useState('dashboard');
+  const [leads,setLeads]=useState([]);
+  const [imoveis,setImoveis]=useState([]);
+  const [tarefas,setTarefas]=useState([]);
+  const [visitas,setVisitas]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [modal,setModal]=useState(null);
+
+  const isAdmin=user?.is_admin||false;
+
+  useEffect(()=>{if(user)loadAll();},[user]);
+
+  const loadAll=async()=>{
+    setLoading(true);
+    const [l,im,t,v]=await Promise.all([
+      db.from('leads').select('*').order('criado_em',{ascending:false}),
+      db.from('imoveis').select('*').order('criado_em',{ascending:false}),
+      db.from('tarefas').select('*').order('prazo',{ascending:true}),
+      db.from('visitas').select('*').order('data',{ascending:true}),
+    ]);
+    setLeads(l.data||[]);
+    setImoveis(im.data||[]);
+    setTarefas(t.data||[]);
+    setVisitas(v.data||[]);
+    setLoading(false);
+  };
+
+  const addLead=async(f)=>{
+    const bId=f.imovel_id?(imoveis.find(p=>p.id===f.imovel_id)?.captador_id||user?.id):user?.id;
+    const {data}=await db.from('leads').insert({...f,corretor_id:bId}).select().single();
+    if(data)setLeads(p=>[data,...p]);
+    setModal(null);
+  };
+
+  const addImovel=async(f)=>{
+    const {data}=await db.from('imoveis').insert({...f,captador_id:user?.id}).select().single();
+    if(data)setImoveis(p=>[data,...p]);
+    setModal(null);
+  };
+
+  const toggleTask=async(id)=>{
+    const t=tarefas.find(x=>x.id===id);
+    if(!t)return;
+    await db.from('tarefas').update({concluida:!t.concluida}).eq('id',id);
+    setTarefas(p=>p.map(x=>x.id===id?{...x,concluida:!x.concluida}:x));
+  };
+
+  if(!user)return <Login onLogin={setUser}/>;
+
+  const NAV=[
+    {id:'dashboard',ic:IC.dash,l:'Dashboard'},
+    {id:'pipeline',ic:IC.users,l:'Pipeline'},
+    {id:'imoveis',ic:IC.bld,l:'Imóveis'},
+    {id:'agenda',ic:IC.cal,l:'Agenda'},
+    {id:'tasks',ic:IC.task,l:'Tarefas'},
+    {id:'dispatch',ic:IC.send,l:'Disparos'},
+  ];
+  const TITLES={dashboard:'Dashboard',pipeline:'Pipeline de Leads',imoveis:'Imóveis',agenda:'Agenda de Visitas',tasks:'Tarefas',dispatch:'Disparos'};
+
+  return (
+    <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
+      <div style={{width:215,background:'#0D0D0D',borderRight:'1px solid #1C1C1C',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{padding:'18px 18px 14px',borderBottom:'1px solid #181818'}}>
+          <div style={{fontSize:16,fontWeight:800,color:G,letterSpacing:1}}>ALTHOFF</div>
+          <div style={{fontSize:10,color:'#444',letterSpacing:2.5,textTransform:'uppercase',marginTop:2}}>CRM Comercial</div>
+        </div>
+        <nav style={{flex:1,padding:'10px 8px'}}>
+          {NAV.map(({id,ic,l})=>(
+            <div key={id} onClick={()=>setSec(id)}
+              style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',borderRadius:8,cursor:'pointer',marginBottom:2,background:sec===id?GA:'transparent',color:sec===id?G:'#555'}}>
+              <Ico d={ic} size={15} col={sec===id?G:'#555'}/>
+              <span style={{fontSize:13,fontWeight:sec===id?600:400}}>{l}</span>
+            </div>
+          ))}
+        </nav>
+        <div style={{padding:'12px 10px',borderTop:'1px solid #181818'}}>
+          <div style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',background:'#161616',borderRadius:8,border:'1px solid #222',marginBottom:8}}>
+            {isAdmin
+              ?<div style={{width:26,height:26,borderRadius:'50%',background:'#222',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Ico d={IC.shld} size={13} col={G}/></div>
+              :<Avatar b={user} size={26}/>}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isAdmin?'Administrador':user?.nome}</div>
+              <div style={{fontSize:10,color:'#444'}}>{isAdmin?'Acesso total':'Corretor(a)'}</div>
+            </div>
+          </div>
+          <button onClick={()=>setUser(null)}
+            style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:7,borderRadius:7,background:'transparent',border:'1px solid #1E1E1E',color:'#555',fontSize:12,cursor:'pointer'}}>
+            <Ico d={IC.out} size={13}/> Sair
+          </button>
+        </div>
+      </div>
+
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{padding:'14px 22px',borderBottom:'1px solid #181818',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#0A0A0A',flexShrink:0}}>
+          <div>
+            <h1 style={{margin:0,fontSize:17,fontWeight:700}}>{TITLES[sec]}</h1>
+            <div style={{fontSize:11,color:'#444',marginTop:1}}>Althoff Grupo — CRM Comercial</div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:32,height:32,borderRadius:8,background:'#161616',border:'1px solid #222',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
+              <Ico d={IC.bell} size={15} col="#666"/>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,background:'#161616',border:`1px solid ${G}33`,borderRadius:8,padding:'5px 11px'}}>
+              {isAdmin?<Ico d={IC.shld} size={14} col={G}/>:<Avatar b={user} size={22}/>}
+              <span style={{fontSize:12,fontWeight:600}}>{isAdmin?'Admin':user?.nome?.split(' ')[0]}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{flex:1,overflow:'auto',padding:22}}>
+          {loading?<Spin/>:(<>
+            {sec==='dashboard'&&<Dashboard leads={leads} tarefas={tarefas} visitas={visitas} setSec={setSec} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask}/>}
+            {sec==='pipeline'&&<Pipeline leads={leads} imoveis={imoveis} corretor={user} isAdmin={isAdmin} setLeads={setLeads} setModal={setModal}/>}
+            {sec==='imoveis'&&<Imoveis imoveis={imoveis} corretor={user} isAdmin={isAdmin} setImoveis={setImoveis} setModal={setModal}/>}
+            {sec==='agenda'&&<Agenda visitas={visitas} corretor={user} isAdmin={isAdmin}/>}
+            {sec==='tasks'&&<Tarefas tarefas={tarefas} corretor={user} isAdmin={isAdmin} toggleTask={toggleTask}/>}
+            {sec==='dispatch'&&<Disparos corretor={user}/>}
+          </>)}
+        </div>
+      </div>
+
+      {modal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={()=>setModal(null)}>
+          <div style={{background:'#141414',border:'1px solid #272727',borderRadius:16,padding:24,width:modal==='addImovel'?480:420,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+              <h2 style={{margin:0,fontSize:16,fontWeight:700}}>{modal==='addLead'?'Novo Lead':'Captar Imóvel'}</h2>
+              <div onClick={()=>setModal(null)} style={{cursor:'pointer',color:'#666'}}><Ico d={IC.x} size={17}/></div>
+            </div>
+            {modal==='addLead'&&<ModalLead onSave={addLead} onClose={()=>setModal(null)} corretor={user} imoveis={imoveis} isAdmin={isAdmin}/>}
+            {modal==='addImovel'&&<ModalImovel onSave={addImovel} onClose={()=>setModal(null)} corretor={user}/>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
